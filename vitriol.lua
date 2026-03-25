@@ -13,6 +13,11 @@ local ref_fd = ui.reference("Rage", "Other", "Duck peek assist")
 local ref_baim = ui.reference("Rage", "Aimbot", "Force body aim")
 local ref_sp = ui.reference("Rage", "Aimbot", "Force safe point")
 
+-- Referências adicionais para o hit log
+local ref_hitchance = ui.reference("Rage", "Aimbot", "Minimum hit chance")
+local ref_min_damage = ui.reference("Rage", "Aimbot", "Minimum damage")
+
+
 -- ==========================================
 -- [ MENU UI ]
 -- ==========================================
@@ -21,12 +26,17 @@ ui.new_label(TAB, CONTAINER, "====== [ Vitriol.lua ] ======")
 -- Clantag
 ui.new_label(TAB, CONTAINER, "--- Clantag ---")
 local clantag_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol.lua Clantag")
+local clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static" })
 local clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
 
 -- Crosshair Indicators
 ui.new_label(TAB, CONTAINER, "--- Indicators ---")
 local hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
 local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 185, 130, 255, 255)
+
+-- Logs na Tela
+ui.new_label(TAB, CONTAINER, "--- On-Screen Logs ---")
+local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
 
 -- Killsay
 ui.new_label(TAB, CONTAINER, "--- Killsay ---")
@@ -44,6 +54,12 @@ local buybot_secondary = ui.new_combobox(TAB, CONTAINER, "Secondary weapon",
 local buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility",
     { "Grenade", "Smoke", "Incendiary", "Flashbang", "Kevlar + Helmet", "Defuse kit", "Zeus" })
 
+-- Config Manager (Placeholder UI)
+ui.new_label(TAB, CONTAINER, "--- Config Manager ---")
+local config_list = ui.new_listbox(TAB, CONTAINER, "Configs", { "Default", "Aggressive", "Scout", "Auto" })
+local config_load = ui.new_button(TAB, CONTAINER, "Load Config", function() print("Config Loaded (Placeholder)") end)
+local config_save = ui.new_button(TAB, CONTAINER, "Save Config", function() print("Config Saved (Placeholder)") end)
+
 ui.new_label(TAB, CONTAINER, "=========================")
 
 
@@ -52,7 +68,8 @@ ui.new_label(TAB, CONTAINER, "=========================")
 -- ==========================================
 local function handle_menu()
     local c_state = ui.get(clantag_enabled)
-    ui.set_visible(clantag_speed, c_state)
+    ui.set_visible(clantag_type, c_state)
+    ui.set_visible(clantag_speed, c_state and ui.get(clantag_type) == "Animated")
 
     local hud_state = ui.get(hud_enabled)
     ui.set_visible(hud_color, hud_state)
@@ -68,6 +85,7 @@ local function handle_menu()
 end
 
 ui.set_callback(clantag_enabled, handle_menu)
+ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
@@ -80,26 +98,15 @@ handle_menu()
 local function draw_indicator(x, y, r, g, b, a, text, value)
     if value <= 0 then return y end
 
-    -- Animação de Fade In
     local current_alpha = math.floor(a * value)
 
-    -- Sombra do texto (Drop Shadow manual para ficar bem legível)
     renderer.text(x + 1, y + 1, 10, 10, 10, current_alpha, "-c", 0, text)
-    -- Texto Principal
     renderer.text(x, y, r, g, b, current_alpha, "-c", 0, text)
 
     return y + (12 * value)
 end
 
--- Armazena o estado das animações (0.0 a 1.0)
-local anim_data = {
-    dt = 0,
-    hs = 0,
-    fd = 0,
-    baim = 0,
-    sp = 0
-}
-
+local anim_data = { dt = 0, hs = 0, fd = 0, baim = 0, sp = 0 }
 local bit_band = bit.band
 local math_sqrt = math.sqrt
 
@@ -112,15 +119,13 @@ local function draw_crosshair_hud()
     local sw, sh = client.screen_size()
     local cx = sw / 2
     local y_offset = (sh / 2) + 25
-    local frametime = globals.frametime() * 8 -- Velocidade da animação de fade
+    local frametime = globals.frametime() * 8
 
     local r, g, b, a = ui.get(hud_color)
 
-    -- Título Vitriol (sem o .lua)
     y_offset = draw_indicator(cx, y_offset, r, g, b, a, "V I T R I O L", 1.0)
     y_offset = y_offset + 2
 
-    -- Atualiza os estados (Interpolation para o fade in/out)
     local is_dt = ui.get(ref_dt) and ui.get(ref_dt_key)
     local is_hs = ui.get(ref_hs) and ui.get(ref_hs_key)
     local is_fd = ui.get(ref_fd)
@@ -133,7 +138,6 @@ local function draw_crosshair_hud()
     anim_data.baim = math.max(0, math.min(1, anim_data.baim + (is_baim and frametime or -frametime)))
     anim_data.sp = math.max(0, math.min(1, anim_data.sp + (is_sp and frametime or -frametime)))
 
-    -- Estado de Movimentação (Estilo Angelwings)
     local flags = entity.get_prop(me, "m_fFlags")
     local vx, vy, vz = entity.get_prop(me, "m_vecVelocity")
     local speed = math_sqrt(vx * vx + vy * vy)
@@ -151,7 +155,6 @@ local function draw_crosshair_hud()
     y_offset = draw_indicator(cx, y_offset, 255, 255, 255, a, string.format("<%s>", state), 1.0)
     y_offset = y_offset + 2
 
-    -- Renderiza os itens empilhados
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "DT", anim_data.dt)
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "HS", anim_data.hs)
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "FD", anim_data.fd)
@@ -164,44 +167,30 @@ end
 -- [ LÓGICA DO CLANTAG ]
 -- ==========================================
 local clantag_frames = {
-    " ",
-    "V",
-    "Vi",
-    "Vit",
-    "Vitr",
-    "Vitri",
-    "Vitrio",
-    "Vitriol",
-    "Vitriol.",
-    "Vitriol.l",
-    "Vitriol.lu",
-    "Vitriol.lua",
-    "Vitriol.lua :3",
-    "Vitriol.lua <3",
-    "Vitriol.lua ♡",
-    "Vitriol.lua ♡",
-    "Vitriol.lua <3",
-    "Vitriol.lua :3",
-    "Vitriol.lua",
-    "Vitriol.lu",
-    "Vitriol.l",
-    "Vitriol.",
-    "Vitriol",
-    "Vitrio",
-    "Vitri",
-    "Vitr",
-    "Vit",
-    "Vi",
-    "V",
-    " "
+    " ", "V", "Vi", "Vit", "Vitr", "Vitri", "Vitrio", "Vitriol", "Vitriol.", "Vitriol.l", "Vitriol.lu", "Vitriol.lua",
+    "Vitriol.lua :3", "Vitriol.lua <3", "Vitriol.lua ♡", "Vitriol.lua ♡", "Vitriol.lua <3", "Vitriol.lua :3",
+    "Vitriol.lua", "Vitriol.lu", "Vitriol.l", "Vitriol.", "Vitriol", "Vitrio", "Vitri", "Vitr", "Vit", "Vi", "V", " "
 }
 
+local static_tag = "Vitriol.lua ♡"
 local current_frame = 1
 local last_update_time = globals.realtime()
+local last_tag_type = ""
 
 local function update_clantag()
     if not ui.get(clantag_enabled) then return end
 
+    local tag_type = ui.get(clantag_type)
+
+    if tag_type == "Static" then
+        if last_tag_type ~= "Static" then
+            client.set_clan_tag(static_tag)
+            last_tag_type = "Static"
+        end
+        return
+    end
+
+    last_tag_type = "Animated"
     local current_time = globals.realtime()
     local speed = ui.get(clantag_speed) * 0.1
 
@@ -217,10 +206,15 @@ local function update_clantag()
     end
 end
 
+local function reset_clantag()
+    client.set_clan_tag("")
+    current_frame = 1
+    last_tag_type = ""
+end
+
 ui.set_callback(clantag_enabled, function()
     if not ui.get(clantag_enabled) then
-        client.set_clan_tag("")
-        current_frame = 1
+        reset_clantag()
     end
 end)
 
@@ -262,6 +256,120 @@ local function on_killsay_player_death(e)
             end)
         end
     end
+end
+
+
+-- ==========================================
+-- [ LÓGICA DOS LOGS (HIT/MISS) ]
+-- ==========================================
+local hitgroup_names = {
+    "body", "head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg", "neck", "?", "gear"
+}
+
+local aim_data = {}
+local screen_logs = {}
+local max_logs = 6
+
+-- Função auxiliar para desenhar o ícone de borboleta (Placeholder usando caractere)
+local function draw_butterfly(x, y, r, g, b, a)
+    renderer.text(x, y, r, g, b, a, "d", 0, "✿") -- Caractere de flor como placeholder, já que não temos a imagem
+end
+
+local function add_screen_log(text, color)
+    table.insert(screen_logs, 1, {
+        text = text,
+        color = color,
+        time = globals.realtime(),
+        alpha = 0
+    })
+
+    if #screen_logs > max_logs then
+        table.remove(screen_logs, #screen_logs)
+    end
+end
+
+local function draw_screen_logs()
+    if not ui.get(logs_enabled) or #screen_logs == 0 then return end
+
+    local sw, sh = client.screen_size()
+    local x = 10           -- Posição X (Canto esquerdo, estilo Hysteria/Angelwings)
+    local y = sh / 2 + 100 -- Começa a desenhar do meio para baixo
+    local current_time = globals.realtime()
+
+    for i = #screen_logs, 1, -1 do
+        local log = screen_logs[i]
+        local time_alive = current_time - log.time
+
+        -- Fade in/out logic
+        if time_alive < 0.2 then
+            log.alpha = time_alive / 0.2
+        elseif time_alive > 4.8 then
+            log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
+        else
+            log.alpha = 1.0
+        end
+
+        if time_alive > 5.0 then
+            table.remove(screen_logs, i)
+        else
+            local a = math.max(0, math.floor(log.alpha * 255))
+
+            -- Sombra/Fundo do log (Estilo Hysteria)
+            local tw, th = renderer.measure_text("", log.text)
+            renderer.rectangle(x, y, tw + 20, 20, 15, 15, 15, math.floor(a * 0.6))
+            renderer.rectangle(x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
+
+            -- Ícone (Borboleta/Flor)
+            draw_butterfly(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a)
+
+            -- Texto
+            renderer.text(x + 16, y + 4, 255, 255, 255, a, "", 0, log.text)
+
+            y = y - 22 -- Move o próximo log para cima
+        end
+    end
+end
+
+local function on_aim_fire(e)
+    if not ui.get(logs_enabled) then return end
+
+    aim_data[e.id] = {
+        target = e.target,
+        hit_chance = e.hit_chance,
+        damage = e.damage,
+        backtrack = globals.tickcount() - e.tick
+    }
+end
+
+local function on_aim_hit(e)
+    if not ui.get(logs_enabled) then return end
+    local data = aim_data[e.id]
+    if not data then return end
+
+    local target_name = entity.get_player_name(e.target)
+    local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
+    local hp_left = entity.get_prop(e.target, "m_iHealth")
+
+    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]",
+        target_name, hitgroup, e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
+
+    print("[Vitriol] " .. log_text)
+    add_screen_log(log_text, { 150, 200, 60 }) -- Verde para hit
+end
+
+local function on_aim_miss(e)
+    if not ui.get(logs_enabled) then return end
+    local data = aim_data[e.id]
+    if not data then return end
+
+    local target_name = entity.get_player_name(e.target)
+    local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
+
+    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)",
+        target_name, hitgroup, e.reason, math.floor(data.hit_chance), data.backtrack)
+
+    print("[Vitriol] " .. log_text)
+    add_screen_log(log_text, { 200, 60, 60 }) -- Vermelho para miss
 end
 
 
@@ -325,11 +433,15 @@ end
 client.set_event_callback("paint", function()
     update_clantag()
     draw_crosshair_hud()
+    draw_screen_logs()
 end)
 
 client.set_event_callback("player_death", on_killsay_player_death)
 client.set_event_callback("round_prestart", on_round_prestart)
+client.set_event_callback("aim_fire", on_aim_fire)
+client.set_event_callback("aim_hit", on_aim_hit)
+client.set_event_callback("aim_miss", on_aim_miss)
 
 client.set_event_callback("shutdown", function()
-    client.set_clan_tag("")
+    reset_clantag()
 end)
