@@ -13,10 +13,6 @@ local ref_fd = ui.reference("Rage", "Other", "Duck peek assist")
 local ref_baim = ui.reference("Rage", "Aimbot", "Force body aim")
 local ref_sp = ui.reference("Rage", "Aimbot", "Force safe point")
 
--- Referências adicionais para o hit log
-local ref_hitchance = ui.reference("Rage", "Aimbot", "Minimum hit chance")
-local ref_min_damage = ui.reference("Rage", "Aimbot", "Minimum damage")
-
 
 -- ==========================================
 -- [ MENU UI ]
@@ -53,12 +49,6 @@ local buybot_secondary = ui.new_combobox(TAB, CONTAINER, "Secondary weapon",
     { "None", "Default pistol", "P250", "Dual Berettas", "Light pistol", "Heavy pistol" })
 local buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility",
     { "Grenade", "Smoke", "Incendiary", "Flashbang", "Kevlar + Helmet", "Defuse kit", "Zeus" })
-
--- Config Manager (Placeholder UI)
-ui.new_label(TAB, CONTAINER, "--- Config Manager ---")
-local config_list = ui.new_listbox(TAB, CONTAINER, "Configs", { "Default", "Aggressive", "Scout", "Auto" })
-local config_load = ui.new_button(TAB, CONTAINER, "Load Config", function() print("Config Loaded (Placeholder)") end)
-local config_save = ui.new_button(TAB, CONTAINER, "Save Config", function() print("Config Saved (Placeholder)") end)
 
 ui.new_label(TAB, CONTAINER, "=========================")
 
@@ -97,7 +87,6 @@ handle_menu()
 -- ==========================================
 local function draw_indicator(x, y, r, g, b, a, text, value)
     if value <= 0 then return y end
-
     local current_alpha = math.floor(a * value)
 
     renderer.text(x + 1, y + 1, 10, 10, 10, current_alpha, "-c", 0, text)
@@ -172,10 +161,17 @@ local clantag_frames = {
     "Vitriol.lua", "Vitriol.lu", "Vitriol.l", "Vitriol.", "Vitriol", "Vitrio", "Vitri", "Vitr", "Vit", "Vi", "V", " "
 }
 
-local static_tag = "Vitriol.lua ♡"
 local current_frame = 1
 local last_update_time = globals.realtime()
-local last_tag_type = ""
+local current_server_tag = ""
+
+-- Função otimizada para não floodar o servidor
+local function set_tag(tag)
+    if tag ~= current_server_tag then
+        client.set_clan_tag(tag)
+        current_server_tag = tag
+    end
+end
 
 local function update_clantag()
     if not ui.get(clantag_enabled) then return end
@@ -183,19 +179,15 @@ local function update_clantag()
     local tag_type = ui.get(clantag_type)
 
     if tag_type == "Static" then
-        if last_tag_type ~= "Static" then
-            client.set_clan_tag(static_tag)
-            last_tag_type = "Static"
-        end
+        set_tag("Vitriol.lua ♡")
         return
     end
 
-    last_tag_type = "Animated"
     local current_time = globals.realtime()
     local speed = ui.get(clantag_speed) * 0.1
 
     if current_time - last_update_time >= speed then
-        client.set_clan_tag(clantag_frames[current_frame])
+        set_tag(clantag_frames[current_frame])
         current_frame = current_frame + 1
 
         if current_frame > #clantag_frames then
@@ -208,8 +200,8 @@ end
 
 local function reset_clantag()
     client.set_clan_tag("")
+    current_server_tag = ""
     current_frame = 1
-    last_tag_type = ""
 end
 
 ui.set_callback(clantag_enabled, function()
@@ -270,9 +262,9 @@ local aim_data = {}
 local screen_logs = {}
 local max_logs = 6
 
--- Função auxiliar para desenhar o ícone de borboleta (Placeholder usando caractere)
-local function draw_butterfly(x, y, r, g, b, a)
-    renderer.text(x, y, r, g, b, a, "d", 0, "✿") -- Caractere de flor como placeholder, já que não temos a imagem
+-- Remove espaços inúteis no final do nome do jogador (Resolve o problema do Aim Botz)
+local function trim_string(s)
+    return s:match("^%s*(.-)%s*$")
 end
 
 local function add_screen_log(text, color)
@@ -292,15 +284,14 @@ local function draw_screen_logs()
     if not ui.get(logs_enabled) or #screen_logs == 0 then return end
 
     local sw, sh = client.screen_size()
-    local x = 10           -- Posição X (Canto esquerdo, estilo Hysteria/Angelwings)
-    local y = sh / 2 + 100 -- Começa a desenhar do meio para baixo
+    local x = 10
+    local y = sh / 2 + 100
     local current_time = globals.realtime()
 
     for i = #screen_logs, 1, -1 do
         local log = screen_logs[i]
         local time_alive = current_time - log.time
 
-        -- Fade in/out logic
         if time_alive < 0.2 then
             log.alpha = time_alive / 0.2
         elseif time_alive > 4.8 then
@@ -314,18 +305,17 @@ local function draw_screen_logs()
         else
             local a = math.max(0, math.floor(log.alpha * 255))
 
-            -- Sombra/Fundo do log (Estilo Hysteria)
             local tw, th = renderer.measure_text("", log.text)
             renderer.rectangle(x, y, tw + 20, 20, 15, 15, 15, math.floor(a * 0.6))
             renderer.rectangle(x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
 
-            -- Ícone (Borboleta/Flor)
-            draw_butterfly(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a)
+            -- Ícone de Coraçãozinho
+            renderer.text(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a, "", 0, "♡")
 
-            -- Texto
+            -- Texto do Log
             renderer.text(x + 16, y + 4, 255, 255, 255, a, "", 0, log.text)
 
-            y = y - 22 -- Move o próximo log para cima
+            y = y - 22
         end
     end
 end
@@ -346,15 +336,16 @@ local function on_aim_hit(e)
     local data = aim_data[e.id]
     if not data then return end
 
-    local target_name = entity.get_player_name(e.target)
+    local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
     local hp_left = entity.get_prop(e.target, "m_iHealth")
 
     local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]",
         target_name, hitgroup, e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
 
-    print("[Vitriol] " .. log_text)
-    add_screen_log(log_text, { 150, 200, 60 }) -- Verde para hit
+    print("[Vitriol.lua] " .. log_text)
+    -- Rosinha Aesthetic para Hits
+    add_screen_log(log_text, { 255, 105, 180 })
 end
 
 local function on_aim_miss(e)
@@ -362,14 +353,15 @@ local function on_aim_miss(e)
     local data = aim_data[e.id]
     if not data then return end
 
-    local target_name = entity.get_player_name(e.target)
+    local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
 
     local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)",
         target_name, hitgroup, e.reason, math.floor(data.hit_chance), data.backtrack)
 
-    print("[Vitriol] " .. log_text)
-    add_screen_log(log_text, { 200, 60, 60 }) -- Vermelho para miss
+    print("[Vitriol.lua] " .. log_text)
+    -- Vermelho para Misses
+    add_screen_log(log_text, { 200, 60, 60 })
 end
 
 
