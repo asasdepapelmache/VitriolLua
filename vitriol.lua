@@ -37,6 +37,7 @@ local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitma
 -- Killsay
 ui.new_label(TAB, CONTAINER, "--- Killsay ---")
 local killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Killsay")
+local killsay_name = ui.new_checkbox(TAB, CONTAINER, "Name on Killsay")
 local killsay_delay = ui.new_slider(TAB, CONTAINER, "Delay (s)", 0, 5, 0, true, "s", 1)
 local killsay_team = ui.new_checkbox(TAB, CONTAINER, "Use Team Chat")
 
@@ -68,6 +69,7 @@ local function handle_menu()
 
     -- Killsay
     local k_state = ui.get(killsay_enabled)
+    ui.set_visible(killsay_name, k_state)
     ui.set_visible(killsay_delay, k_state)
     ui.set_visible(killsay_team, k_state)
 
@@ -142,6 +144,13 @@ ui.set_callback(clantag_enabled, function()
     if not ui.get(clantag_enabled) then reset_clantag() end
 end)
 
+
+-- ==========================================
+-- [ UTILS ]
+-- ==========================================
+local function trim_string(s)
+    return s:match("^%s*(.-)%s*$")
+end
 
 -- ==========================================
 -- [ INDICADORES DA HUD ]
@@ -222,10 +231,6 @@ local aim_data = {}
 local screen_logs = {}
 local hit_markers = {}
 local max_logs = 6
-
-local function trim_string(s)
-    return s:match("^%s*(.-)%s*$")
-end
 
 local function add_screen_log(text, color)
     table.insert(screen_logs, 1, {
@@ -383,8 +388,15 @@ local function on_killsay_player_death(e)
     if attacker == me and victim ~= me then
         local delay = ui.get(killsay_delay)
         local cmd = ui.get(killsay_team) and "say_team" or "say"
-        local text = phrases[math.random(1, #phrases)]
-        local full_cmd = string.format('%s "%s"', cmd, text)
+        local raw_text = phrases[math.random(1, #phrases)]
+
+        -- Substitui 'you' pelo nome se a opção tiver ligada
+        if ui.get(killsay_name) then
+            local victim_name = trim_string(entity.get_player_name(victim) or "you")
+            raw_text = raw_text:gsub("you", victim_name)
+        end
+
+        local full_cmd = string.format('%s "%s"', cmd, raw_text)
 
         if delay <= 0.01 then
             client.exec(full_cmd)
