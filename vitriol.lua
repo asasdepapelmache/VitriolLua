@@ -1,6 +1,6 @@
 --[[
     =============================================
-                 Vitriol.lua
+                 Vitriol.lua by lari
     =============================================
 ]]
 
@@ -78,19 +78,18 @@ local function handle_menu()
     ui.set_visible(buybot_utility, b_state)
 end
 
--- Callbacks do Menu (Para atualizar sempre que algo mudar)
+-- Callbacks do Menu
 ui.set_callback(clantag_enabled, handle_menu)
 ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 
--- Roda uma vez para ajeitar a tela inicial
 handle_menu()
 
 
 -- ==========================================
--- [ LÓGICA DO CLANTAG ]
+-- [ CLANTAG ]
 -- ==========================================
 local clantag_frames = {
     " ", "V", "Vi", "Vit", "Vitr", "Vitri", "Vitrio", "Vitriol", "Vitriol.", "Vitriol.l", "Vitriol.lu", "Vitriol.lua",
@@ -145,7 +144,7 @@ end)
 
 
 -- ==========================================
--- [ LÓGICA DOS INDICADORES (HUD) ]
+-- [ INDICADORES DA HUD ]
 -- ==========================================
 local function draw_indicator(x, y, r, g, b, a, text, value)
     if value <= 0 then return y end
@@ -213,7 +212,7 @@ end
 
 
 -- ==========================================
--- [ LÓGICA DOS LOGS E HITMARKER ]
+-- [ LOGS E HITMARKER ]
 -- ==========================================
 local hitgroup_names = {
     "body", "head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg", "neck", "?", "gear"
@@ -224,7 +223,6 @@ local screen_logs = {}
 local hit_markers = {}
 local max_logs = 6
 
--- Remove os espaços invisíveis do final do nome dos Bots
 local function trim_string(s)
     return s:match("^%s*(.-)%s*$")
 end
@@ -270,7 +268,7 @@ local function draw_screen_logs()
             renderer.rectangle(x, y, tw + 20, 20, 15, 15, 15, math.floor(a * 0.6))
             renderer.rectangle(x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
 
-            -- Coraçãozinho no log de texto (A fonte pequena aguenta Unicode tranquilo)
+            -- Coraçãozinho no log de texto
             renderer.text(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a, "", 0, "❤")
             renderer.text(x + 18, y + 4, 255, 255, 255, a, "", 0, log.text)
 
@@ -300,7 +298,6 @@ local function draw_3d_hitmarkers()
                     alpha = math.max(0, math.floor(255 * (1.5 - time_alive) / 0.5))
                 end
 
-                -- Usamos '<3' porque a engine garante a renderização em fontes normais "cb"
                 renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, "cb", 0, "<3")
                 renderer.text(sx, sy, 255, 105, 180, alpha, "cb", 0, "<3")
             end
@@ -309,7 +306,6 @@ local function draw_3d_hitmarkers()
 end
 
 local function on_aim_fire(e)
-    -- O SEGREDO DO HYSTERIA: Salvamos o X,Y,Z exato do tiro antes de acertar!
     aim_data[e.id] = {
         target = e.target,
         hit_chance = e.hit_chance,
@@ -325,7 +321,6 @@ local function on_aim_hit(e)
     local data = aim_data[e.id]
     if not data then return end
 
-    -- Como o aim_hit não tem x,y,z nativo, a gente puxa do data salvo no aim_fire!
     if ui.get(hitmarker_enabled) and data.x and data.y and data.z then
         table.insert(hit_markers, {
             x = data.x,
@@ -365,7 +360,7 @@ end
 
 
 -- ==========================================
--- [ LÓGICA DO KILLSAY ]
+-- [ KILLSAY ]
 -- ==========================================
 local phrases = {
     "VITRIOL.lua transmuted you",
@@ -405,7 +400,7 @@ end
 
 
 -- ==========================================
--- [ LÓGICA DO BUYBOT ]
+-- [ BUYBOT ]
 -- ==========================================
 local buy_cmds = {
     ["Auto"] = "scar20",
