@@ -1,17 +1,22 @@
 --[[
     =============================================
-                 Vitriol.lua by lari
+                 Vitriol.lua by larihvh
     =============================================
 ]]
 
 local TAB, CONTAINER = "LUA", "B"
 
--- Referências Nativas do Gamesense
-local ref_dt, ref_dt_key = ui.reference("Rage", "Aimbot", "Double tap")
-local ref_hs, ref_hs_key = ui.reference("AA", "Other", "On shot anti-aim")
-local ref_fd = ui.reference("Rage", "Other", "Duck peek assist")
-local ref_baim = ui.reference("Rage", "Aimbot", "Force body aim")
-local ref_sp = ui.reference("Rage", "Aimbot", "Force safe point")
+local function get_refs(...) return { ui.reference(...) } end
+
+local ref_dt = get_refs("Rage", "Aimbot", "Double tap")
+local ref_hs = get_refs("AA", "Other", "On shot anti-aim")
+local ref_fd = get_refs("Rage", "Other", "Duck peek assist")
+local ref_baim = get_refs("Rage", "Aimbot", "Force body aim")
+local ref_sp = get_refs("Rage", "Aimbot", "Force safe point")
+
+local ref_fs = get_refs("AA", "Anti-aimbot angles", "Freestanding")
+local ref_dmg = get_refs("RAGE", "Aimbot", "Minimum damage")
+local ref_ovr = get_refs("RAGE", "Aimbot", "Minimum damage override")
 
 -- ==========================================
 -- [ MENU UI ]
@@ -23,10 +28,12 @@ ui.new_label(TAB, CONTAINER, "--- Clantag ---")
 local clantag_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol.lua Clantag")
 local clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static" })
 local clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
+local clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
 
 -- Crosshair Indicators
 ui.new_label(TAB, CONTAINER, "--- Indicators ---")
 local hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
+local hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
 local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
 
 -- Logs na Tela & Hitmarker
@@ -58,29 +65,27 @@ ui.new_label(TAB, CONTAINER, "=========================")
 -- [ VISIBILITY HANDLER ]
 -- ==========================================
 local function handle_menu()
-    -- Clantag
     local c_state = ui.get(clantag_enabled)
     local c_type = ui.get(clantag_type)
     ui.set_visible(clantag_type, c_state)
     ui.set_visible(clantag_speed, c_state and c_type == "Animated")
+    ui.set_visible(clantag_sync, c_state and c_type == "Animated")
 
-    -- HUD
-    ui.set_visible(hud_color, ui.get(hud_enabled))
+    local h_state = ui.get(hud_enabled)
+    ui.set_visible(hud_style, h_state)
+    ui.set_visible(hud_color, h_state)
 
-    -- Killsay
     local k_state = ui.get(killsay_enabled)
     ui.set_visible(killsay_name, k_state)
     ui.set_visible(killsay_delay, k_state)
     ui.set_visible(killsay_team, k_state)
 
-    -- Buybot
     local b_state = ui.get(buybot_enabled)
     ui.set_visible(buybot_primary, b_state)
     ui.set_visible(buybot_secondary, b_state)
     ui.set_visible(buybot_utility, b_state)
 end
 
--- Callbacks do Menu
 ui.set_callback(clantag_enabled, handle_menu)
 ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
@@ -111,6 +116,11 @@ local function set_tag(tag)
     end
 end
 
+ui.set_callback(clantag_sync, function()
+    current_frame = 1
+    last_update_time = globals.realtime()
+end)
+
 local function update_clantag()
     if not ui.get(clantag_enabled) then return end
 
@@ -119,7 +129,6 @@ local function update_clantag()
         return
     end
 
-    -- Animação
     local current_time = globals.realtime()
     local speed = ui.get(clantag_speed) * 0.1
 
@@ -146,27 +155,72 @@ end)
 
 
 -- ==========================================
--- [ UTILS ]
+-- [ UTILS & SEGURANÇA DE HOTKEY ]
 -- ==========================================
 local function trim_string(s)
     return s:match("^%s*(.-)%s*$")
 end
 
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+local function is_active(refs)
+    if not refs or refs[1] == nil then return false end
+    local val = ui.get(refs[1])
+    local enabled = false
+
+    if type(val) == "boolean" then enabled = val
+    elseif type(val) == "table" then enabled = #val > 0
+    elseif type(val) == "string" then enabled = (val ~= "Off" and val ~= "-")
+    else enabled = true end
+
+    if not enabled then return false end
+
+    if refs[2] ~= nil and type(ui.get(refs[2])) == "boolean" then
+        return ui.get(refs[2])
+    end
+
+    return true
+end
+
+
 -- ==========================================
 -- [ INDICADORES DA HUD ]
 -- ==========================================
-local function draw_indicator(x, y, r, g, b, a, text, value)
+local anim_data = { dt = 0, dt_charge = 1.0, hs = 0, fs = 0, fd = 0, baim = 0, sp = 0 }
+local dmg_anim = { val = 0, r = 220, g = 180, b = 255 }
+local bit_band = bit.band
+local math_sqrt = math.sqrt
+
+local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
     if value <= 0 then return y end
     local current_alpha = math.floor(a * value)
 
-    renderer.text(x + 1, y + 1, 10, 10, 10, current_alpha, "-c", 0, text)
-    renderer.text(x, y, r, g, b, current_alpha, "-c", 0, text)
-    return y + (12 * value)
-end
+    local style = ui.get(hud_style)
+    local flag = "c"
+    if style == "Normal" then flag = "c"
+    elseif style == "Bold" then flag = "cb" end
 
-local anim_data = { dt = 0, hs = 0, fd = 0, baim = 0, sp = 0 }
-local bit_band = bit.band
-local math_sqrt = math.sqrt
+    renderer.text(x + 1, y + 1, 10, 10, 10, math.floor(current_alpha * 0.8), flag, 0, text)
+    renderer.text(x, y, r, g, b, current_alpha, flag, 0, text)
+
+    if is_dt then
+        local tw, th = renderer.measure_text(flag, text)
+        local bar_x = x + (tw / 2) + 4
+        local bar_y = y - 3
+
+        for i = 0, 5 do
+            local is_filled = (i / 5) <= anim_data.dt_charge
+            local block_a = is_filled and current_alpha or math.floor(current_alpha * 0.2)
+
+            renderer.rectangle(bar_x + (i * 4) + 1, bar_y + 1, 2, 6, 10, 10, 10, math.floor(current_alpha * 0.5))
+            renderer.rectangle(bar_x + (i * 4), bar_y, 2, 6, r, g, b, block_a)
+        end
+    end
+
+    return y + (13 * value)
+end
 
 local function draw_crosshair_hud()
     if not ui.get(hud_enabled) then return end
@@ -175,25 +229,85 @@ local function draw_crosshair_hud()
 
     local sw, sh = client.screen_size()
     local cx = sw / 2
-    local y_offset = (sh / 2) + 25
+    local cy = sh / 2
+    local y_offset = cy + 25
     local frametime = globals.frametime() * 8
-
     local r, g, b, a = ui.get(hud_color)
 
-    y_offset = draw_indicator(cx, y_offset, r, g, b, a, "V I T R I O L", 1.0)
+    local style = ui.get(hud_style)
+    local flag = "c"
+    if style == "Normal" then flag = "c"
+    elseif style == "Bold" then flag = "cb" end
+
+    local weapon_ent = entity.get_player_weapon(me)
+    if weapon_ent then
+        local weapon_class = entity.get_classname(weapon_ent) or ""
+        local is_knife = weapon_class:find("Knife") or weapon_class:find("Bayonet")
+        local is_grenade = weapon_class:find("Grenade") or weapon_class:find("Flashbang") or
+                           weapon_class:find("Molotov") or weapon_class:find("Decoy") or
+                           weapon_class:find("Smoke") or weapon_class:find("Incendiary")
+
+        if not is_knife and not is_grenade then
+
+            local normal_dmg = 1
+            if ref_dmg[1] ~= nil then normal_dmg = ui.get(ref_dmg[1]) end
+
+            local is_override_active = false
+            local override_dmg = 1
+            if #ref_ovr == 2 then
+                is_override_active = ui.get(ref_ovr[1])
+                override_dmg = ui.get(ref_ovr[2])
+            elseif #ref_ovr == 3 then
+                is_override_active = ui.get(ref_ovr[2])
+                override_dmg = ui.get(ref_ovr[3])
+            end
+
+            local target_dmg = is_override_active and override_dmg or normal_dmg
+
+            -- Animação do Valor
+            dmg_anim.val = lerp(dmg_anim.val, target_dmg, globals.frametime() * 25)
+            if math.abs(dmg_anim.val - target_dmg) < 0.5 then dmg_anim.val = target_dmg end
+
+            local display_num = math.floor(dmg_anim.val + 0.5)
+            local display_text = ""
+            if display_num == 0 then display_text = "Auto"
+            elseif display_num > 100 then display_text = "HP+" .. tostring(display_num - 100)
+            else display_text = tostring(display_num) end
+
+            -- Animação da Cor
+            local target_r, target_g, target_b = 220, 180, 255 -- Lilás Pastel
+            if is_override_active then target_r, target_g, target_b = 255, 105, 180 end -- Rosa Choque
+
+            dmg_anim.r = lerp(dmg_anim.r, target_r, globals.frametime() * 15)
+            dmg_anim.g = lerp(dmg_anim.g, target_g, globals.frametime() * 15)
+            dmg_anim.b = lerp(dmg_anim.b, target_b, globals.frametime() * 15)
+
+            local dmg_x = cx + 12
+            local dmg_y = cy - 15
+            renderer.text(dmg_x + 1, dmg_y + 1, 10, 10, 10, math.floor(a * 0.8), flag, 0, display_text)
+            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag, 0, display_text)
+        end
+    end
+    -- =======================
+
+    y_offset = draw_indicator(cx, y_offset, r, g, b, a, "VITRIOL", 1.0)
     y_offset = y_offset + 2
 
-    local is_dt = ui.get(ref_dt) and ui.get(ref_dt_key)
-    local is_hs = ui.get(ref_hs) and ui.get(ref_hs_key)
-    local is_fd = ui.get(ref_fd)
-    local is_baim = ui.get(ref_baim)
-    local is_sp = ui.get(ref_sp)
+    local is_dt = is_active(ref_dt)
+    local is_hs = is_active(ref_hs)
+    local is_fs = is_active(ref_fs)
+    local is_fd = is_active(ref_fd)
+    local is_baim = is_active(ref_baim)
+    local is_sp = is_active(ref_sp)
 
     anim_data.dt = math.max(0, math.min(1, anim_data.dt + (is_dt and frametime or -frametime)))
     anim_data.hs = math.max(0, math.min(1, anim_data.hs + (is_hs and frametime or -frametime)))
+    anim_data.fs = math.max(0, math.min(1, anim_data.fs + (is_fs and frametime or -frametime)))
     anim_data.fd = math.max(0, math.min(1, anim_data.fd + (is_fd and frametime or -frametime)))
     anim_data.baim = math.max(0, math.min(1, anim_data.baim + (is_baim and frametime or -frametime)))
     anim_data.sp = math.max(0, math.min(1, anim_data.sp + (is_sp and frametime or -frametime)))
+
+    anim_data.dt_charge = math.max(0, math.min(1, anim_data.dt_charge + globals.frametime() * 1.5))
 
     local flags = entity.get_prop(me, "m_fFlags")
     local vx, vy, vz = entity.get_prop(me, "m_vecVelocity")
@@ -212,8 +326,9 @@ local function draw_crosshair_hud()
     y_offset = draw_indicator(cx, y_offset, 255, 255, 255, a, string.format("<%s>", state), 1.0)
     y_offset = y_offset + 2
 
-    y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "DT", anim_data.dt)
+    y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "DT", anim_data.dt, true)
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "HS", anim_data.hs)
+    y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "FS", anim_data.fs)
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "FD", anim_data.fd)
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "BAIM", anim_data.baim)
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "SAFE", anim_data.sp)
@@ -273,7 +388,6 @@ local function draw_screen_logs()
             renderer.rectangle(x, y, tw + 20, 20, 15, 15, 15, math.floor(a * 0.6))
             renderer.rectangle(x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
 
-            -- Coraçãozinho no log de texto
             renderer.text(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a, "", 0, "❤")
             renderer.text(x + 18, y + 4, 255, 255, 255, a, "", 0, log.text)
 
@@ -296,7 +410,7 @@ local function draw_3d_hitmarkers()
             local sx, sy = renderer.world_to_screen(marker.x, marker.y, marker.z)
 
             if sx and sy then
-                sy = sy - (time_alive * 30) -- Faz flutuar pra cima
+                sy = sy - (time_alive * 30)
 
                 local alpha = 255
                 if time_alive > 1.0 then
@@ -311,6 +425,8 @@ local function draw_3d_hitmarkers()
 end
 
 local function on_aim_fire(e)
+    anim_data.dt_charge = 0
+
     aim_data[e.id] = {
         target = e.target,
         hit_chance = e.hit_chance,
@@ -390,7 +506,6 @@ local function on_killsay_player_death(e)
         local cmd = ui.get(killsay_team) and "say_team" or "say"
         local raw_text = phrases[math.random(1, #phrases)]
 
-        -- Substitui 'you' pelo nome se a opção tiver ligada
         if ui.get(killsay_name) then
             local victim_name = trim_string(entity.get_player_name(victim) or "you")
             raw_text = raw_text:gsub("you", victim_name)
@@ -473,6 +588,14 @@ client.set_event_callback("paint", function()
     draw_crosshair_hud()
     draw_screen_logs()
     draw_3d_hitmarkers()
+end)
+
+client.set_event_callback("weapon_fire", function(e)
+    local me = entity.get_local_player()
+    local shooter = client.userid_to_entindex(e.userid)
+    if shooter == me then
+        anim_data.dt_charge = 0
+    end
 end)
 
 client.set_event_callback("player_death", on_killsay_player_death)
