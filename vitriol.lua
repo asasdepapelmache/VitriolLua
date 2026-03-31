@@ -39,6 +39,7 @@ local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 1
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
 local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
 local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
+local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)" })
 
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
@@ -76,6 +77,9 @@ local function handle_menu()
     ui.set_visible(hud_style, h_state)
     ui.set_visible(hud_color, h_state)
 
+    local hm_state = ui.get(hitmarker_enabled)
+    ui.set_visible(hitmarker_style, hm_state)
+
     local k_state = ui.get(killsay_enabled)
     ui.set_visible(killsay_name, k_state)
     ui.set_visible(killsay_death, k_state)
@@ -92,6 +96,7 @@ end
 ui.set_callback(clantag_enabled, handle_menu)
 ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
+ui.set_callback(hitmarker_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 
@@ -378,6 +383,11 @@ end
 local function draw_3d_hitmarkers()
     if not ui.get(hitmarker_enabled) or #hit_markers == 0 then return end
 
+    -- Sistema inteligente: Icone unicode vs Texto normal
+    local style = ui.get(hitmarker_style)
+    local symbol = style == "Icon (❤)" and "❤" or "<3"
+    local flag = style == "Icon (❤)" and "c" or "cb"
+
     local current_time = globals.realtime()
     for i = #hit_markers, 1, -1 do
         local marker = hit_markers[i]
@@ -391,8 +401,8 @@ local function draw_3d_hitmarkers()
                 sy = sy - (time_alive * 30)
                 local alpha = 255
                 if time_alive > 1.0 then alpha = math.max(0, math.floor(255 * (1.5 - time_alive) / 0.5)) end
-                renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, "cb", 0, "<3")
-                renderer.text(sx, sy, 255, 105, 180, alpha, "cb", 0, "<3")
+                renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, flag, 0, symbol)
+                renderer.text(sx, sy, 255, 105, 180, alpha, flag, 0, symbol)
             end
         end
     end
