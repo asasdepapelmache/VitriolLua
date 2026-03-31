@@ -13,7 +13,6 @@ local ref_hs = get_refs("AA", "Other", "On shot anti-aim")
 local ref_fd = get_refs("Rage", "Other", "Duck peek assist")
 local ref_baim = get_refs("Rage", "Aimbot", "Force body aim")
 local ref_sp = get_refs("Rage", "Aimbot", "Force safe point")
-
 local ref_fs = get_refs("AA", "Anti-aimbot angles", "Freestanding")
 local ref_dmg = get_refs("RAGE", "Aimbot", "Minimum damage")
 local ref_ovr = get_refs("RAGE", "Aimbot", "Minimum damage override")
@@ -41,12 +40,13 @@ ui.new_label(TAB, CONTAINER, "--- Visuals ---")
 local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
 local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
 
--- Killsay
-ui.new_label(TAB, CONTAINER, "--- Killsay ---")
-local killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Killsay")
-local killsay_name = ui.new_checkbox(TAB, CONTAINER, "Name on Killsay")
-local killsay_delay = ui.new_slider(TAB, CONTAINER, "Delay (s)", 0, 5, 0, true, "s", 1)
-local killsay_team = ui.new_checkbox(TAB, CONTAINER, "Use Team Chat")
+-- Trash Talk
+ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
+local killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Trash Talk")
+local killsay_death = ui.new_checkbox(TAB, CONTAINER, "Enable Deathsay (When you die)")
+local killsay_molly = ui.new_checkbox(TAB, CONTAINER, "Enable Molotov Say")
+local killsay_revenge = ui.new_checkbox(TAB, CONTAINER, "Enable Revenge Say")
+local killsay_delay = ui.new_slider(TAB, CONTAINER, "Message Delay (s)", 0, 5, 0, true, "s", 1)
 
 -- Buybot
 ui.new_label(TAB, CONTAINER, "--- Buybot ---")
@@ -76,9 +76,10 @@ local function handle_menu()
     ui.set_visible(hud_color, h_state)
 
     local k_state = ui.get(killsay_enabled)
-    ui.set_visible(killsay_name, k_state)
+    ui.set_visible(killsay_death, k_state)
+    ui.set_visible(killsay_molly, k_state)
+    ui.set_visible(killsay_revenge, k_state)
     ui.set_visible(killsay_delay, k_state)
-    ui.set_visible(killsay_team, k_state)
 
     local b_state = ui.get(buybot_enabled)
     ui.set_visible(buybot_primary, b_state)
@@ -155,25 +156,25 @@ end)
 
 
 -- ==========================================
--- [ UTILS & SEGURANÇA DE HOTKEY ]
+-- [ UTILS]
 -- ==========================================
-local function trim_string(s)
-    return s:match("^%s*(.-)%s*$")
-end
-
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
+local function trim_string(s) return s:match("^%s*(.-)%s*$") end
+local function lerp(a, b, t) return a + (b - a) * t end
 
 local function is_active(refs)
     if not refs or refs[1] == nil then return false end
     local val = ui.get(refs[1])
     local enabled = false
 
-    if type(val) == "boolean" then enabled = val
-    elseif type(val) == "table" then enabled = #val > 0
-    elseif type(val) == "string" then enabled = (val ~= "Off" and val ~= "-")
-    else enabled = true end
+    if type(val) == "boolean" then
+        enabled = val
+    elseif type(val) == "table" then
+        enabled = #val > 0
+    elseif type(val) == "string" then
+        enabled = (val ~= "Off" and val ~= "-")
+    else
+        enabled = true
+    end
 
     if not enabled then return false end
 
@@ -199,8 +200,11 @@ local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
 
     local style = ui.get(hud_style)
     local flag = "c"
-    if style == "Normal" then flag = "c"
-    elseif style == "Bold" then flag = "cb" end
+    if style == "Normal" then
+        flag = "c"
+    elseif style == "Bold" then
+        flag = "cb"
+    end
 
     renderer.text(x + 1, y + 1, 10, 10, 10, math.floor(current_alpha * 0.8), flag, 0, text)
     renderer.text(x, y, r, g, b, current_alpha, flag, 0, text)
@@ -236,19 +240,22 @@ local function draw_crosshair_hud()
 
     local style = ui.get(hud_style)
     local flag = "c"
-    if style == "Normal" then flag = "c"
-    elseif style == "Bold" then flag = "cb" end
+    if style == "Normal" then
+        flag = "c"
+    elseif style == "Bold" then
+        flag = "cb"
+    end
 
+    -- MIN DMG ANIMADO
     local weapon_ent = entity.get_player_weapon(me)
     if weapon_ent then
         local weapon_class = entity.get_classname(weapon_ent) or ""
         local is_knife = weapon_class:find("Knife") or weapon_class:find("Bayonet")
         local is_grenade = weapon_class:find("Grenade") or weapon_class:find("Flashbang") or
-                           weapon_class:find("Molotov") or weapon_class:find("Decoy") or
-                           weapon_class:find("Smoke") or weapon_class:find("Incendiary")
+            weapon_class:find("Molotov") or weapon_class:find("Decoy") or
+            weapon_class:find("Smoke") or weapon_class:find("Incendiary")
 
         if not is_knife and not is_grenade then
-
             local normal_dmg = 1
             if ref_dmg[1] ~= nil then normal_dmg = ui.get(ref_dmg[1]) end
 
@@ -264,19 +271,21 @@ local function draw_crosshair_hud()
 
             local target_dmg = is_override_active and override_dmg or normal_dmg
 
-            -- Animação do Valor
             dmg_anim.val = lerp(dmg_anim.val, target_dmg, globals.frametime() * 25)
             if math.abs(dmg_anim.val - target_dmg) < 0.5 then dmg_anim.val = target_dmg end
 
             local display_num = math.floor(dmg_anim.val + 0.5)
             local display_text = ""
-            if display_num == 0 then display_text = "Auto"
-            elseif display_num > 100 then display_text = "HP+" .. tostring(display_num - 100)
-            else display_text = tostring(display_num) end
+            if display_num == 0 then
+                display_text = "Auto"
+            elseif display_num > 100 then
+                display_text = "HP+" .. tostring(display_num - 100)
+            else
+                display_text = tostring(display_num)
+            end
 
-            -- Animação da Cor
-            local target_r, target_g, target_b = 220, 180, 255 -- Lilás Pastel
-            if is_override_active then target_r, target_g, target_b = 255, 105, 180 end -- Rosa Choque
+            local target_r, target_g, target_b = 220, 180, 255
+            if is_override_active then target_r, target_g, target_b = 255, 105, 180 end
 
             dmg_anim.r = lerp(dmg_anim.r, target_r, globals.frametime() * 15)
             dmg_anim.g = lerp(dmg_anim.g, target_g, globals.frametime() * 15)
@@ -285,10 +294,10 @@ local function draw_crosshair_hud()
             local dmg_x = cx + 12
             local dmg_y = cy - 15
             renderer.text(dmg_x + 1, dmg_y + 1, 10, 10, 10, math.floor(a * 0.8), flag, 0, display_text)
-            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag, 0, display_text)
+            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag,
+                0, display_text)
         end
     end
-    -- =======================
 
     y_offset = draw_indicator(cx, y_offset, r, g, b, a, "VITRIOL", 1.0)
     y_offset = y_offset + 2
@@ -348,23 +357,15 @@ local hit_markers = {}
 local max_logs = 6
 
 local function add_screen_log(text, color)
-    table.insert(screen_logs, 1, {
-        text = text,
-        color = color,
-        time = globals.realtime(),
-        alpha = 0
-    })
-    if #screen_logs > max_logs then
-        table.remove(screen_logs, #screen_logs)
-    end
+    table.insert(screen_logs, 1, { text = text, color = color, time = globals.realtime(), alpha = 0 })
+    if #screen_logs > max_logs then table.remove(screen_logs, #screen_logs) end
 end
 
 local function draw_screen_logs()
     if not ui.get(logs_enabled) or #screen_logs == 0 then return end
 
     local sw, sh = client.screen_size()
-    local x = 10
-    local y = sh / 2 + 100
+    local x, y = 10, sh / 2 + 100
     local current_time = globals.realtime()
 
     for i = #screen_logs, 1, -1 do
@@ -383,14 +384,11 @@ local function draw_screen_logs()
             table.remove(screen_logs, i)
         else
             local a = math.max(0, math.floor(log.alpha * 255))
-
             local tw, th = renderer.measure_text("", log.text)
             renderer.rectangle(x, y, tw + 20, 20, 15, 15, 15, math.floor(a * 0.6))
             renderer.rectangle(x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
-
             renderer.text(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a, "", 0, "❤")
             renderer.text(x + 18, y + 4, 255, 255, 255, a, "", 0, log.text)
-
             y = y - 22
         end
     end
@@ -408,15 +406,10 @@ local function draw_3d_hitmarkers()
             table.remove(hit_markers, i)
         else
             local sx, sy = renderer.world_to_screen(marker.x, marker.y, marker.z)
-
             if sx and sy then
                 sy = sy - (time_alive * 30)
-
                 local alpha = 255
-                if time_alive > 1.0 then
-                    alpha = math.max(0, math.floor(255 * (1.5 - time_alive) / 0.5))
-                end
-
+                if time_alive > 1.0 then alpha = math.max(0, math.floor(255 * (1.5 - time_alive) / 0.5)) end
                 renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, "cb", 0, "<3")
                 renderer.text(sx, sy, 255, 105, 180, alpha, "cb", 0, "<3")
             end
@@ -426,12 +419,12 @@ end
 
 local function on_aim_fire(e)
     anim_data.dt_charge = 0
-
     aim_data[e.id] = {
         target = e.target,
         hit_chance = e.hit_chance,
         damage = e.damage,
-        backtrack = globals.tickcount() - e.tick,
+        backtrack = globals.tickcount() -
+            e.tick,
         x = e.x,
         y = e.y,
         z = e.z
@@ -443,22 +436,15 @@ local function on_aim_hit(e)
     if not data then return end
 
     if ui.get(hitmarker_enabled) and data.x and data.y and data.z then
-        table.insert(hit_markers, {
-            x = data.x,
-            y = data.y,
-            z = data.z,
-            time = globals.realtime()
-        })
+        table.insert(hit_markers, { x = data.x, y = data.y, z = data.z, time = globals.realtime() })
     end
 
     if not ui.get(logs_enabled) then return end
-
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
     local hp_left = entity.get_prop(e.target, "m_iHealth")
-
-    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]",
-        target_name, hitgroup, e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
+    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup,
+        e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 255, 105, 180 })
@@ -468,12 +454,10 @@ local function on_aim_miss(e)
     if not ui.get(logs_enabled) then return end
     local data = aim_data[e.id]
     if not data then return end
-
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
-
-    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)",
-        target_name, hitgroup, e.reason, math.floor(data.hit_chance), data.backtrack)
+    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason,
+        math.floor(data.hit_chance), data.backtrack)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 200, 60, 60 })
@@ -481,49 +465,124 @@ end
 
 
 -- ==========================================
--- [ KILLSAY ]
+-- [ TRASH TALK E REVENGE ]
 -- ==========================================
-local phrases = {
-    "VITRIOL.lua transmuted you",
-    "solve et coagula.",
-    "VITRIOL.lua dissolves you",
-    "Vitriol.lua > ALL :3",
-    "OWNED BY Vitriol.lua ♡",
-    "Vitriol.lua runs you",
-    "Vitriol.lua on top!",
-    "1"
-}
+local messages = { "VITRIOL.lua dissolves you", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡",
+    "nn dog", "Sit down" }
+local molly_msgs = { "Churrasco de random kkk", "Assado vivo", "Fogo na inveja", "Virou cinza kkk", "Dançando no fogo" }
+local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda",
+    "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
+
+local current_idx, molly_idx, death_idx = 1, 1, 1
+local revenge_target_userid = nil
+
+local vitriol_queue = {}
+local is_processing_chat = false
+local last_chat_time = 0
+local last_event_time = 0
+
+local function is_spectator()
+    local lp = entity.get_local_player()
+    return not lp or entity.get_prop(lp, "m_iTeamNum") == 1
+end
+
+local function process_chat_queue()
+    if #vitriol_queue == 0 then
+        is_processing_chat = false
+        return
+    end
+
+    is_processing_chat = true
+
+    local realtime = globals.realtime()
+    if realtime - last_chat_time < 0.85 then
+        client.delay_call(0.1, process_chat_queue)
+        return
+    end
+
+    local msg = table.remove(vitriol_queue, 1)
+    client.exec('say "' .. msg .. '"')
+    last_chat_time = globals.realtime()
+
+    client.delay_call(0.85, process_chat_queue)
+end
+
+local function queue_message(msg)
+    table.insert(vitriol_queue, msg)
+    if not is_processing_chat then
+        process_chat_queue()
+    end
+end
+
+local function queue_with_delay(msg)
+    local delay = ui.get(killsay_delay)
+    if delay <= 0.01 then
+        queue_message(msg)
+    else
+        client.delay_call(delay, function() queue_message(msg) end)
+    end
+end
 
 local function on_killsay_player_death(e)
-    if not ui.get(killsay_enabled) then return end
+    if not ui.get(killsay_enabled) or is_spectator() then return end
 
-    local me = entity.get_local_player()
-    local attacker = client.userid_to_entindex(e.attacker)
-    local victim = client.userid_to_entindex(e.userid)
+    local realtime = globals.realtime()
+    if realtime - last_event_time < 0.02 then return end
+    last_event_time = realtime
 
-    if attacker == me and victim ~= me then
-        local delay = ui.get(killsay_delay)
-        local cmd = ui.get(killsay_team) and "say_team" or "say"
-        local raw_text = phrases[math.random(1, #phrases)]
+    local lp = entity.get_local_player()
+    local attacker_ent = client.userid_to_entindex(e.attacker)
+    local victim_ent = client.userid_to_entindex(e.userid)
 
-        if ui.get(killsay_name) then
-            local victim_name = trim_string(entity.get_player_name(victim) or "you")
-            raw_text = raw_text:gsub("you", victim_name)
+    if victim_ent == lp and attacker_ent ~= lp and attacker_ent then
+        if ui.get(killsay_death) then
+            queue_with_delay(death_msgs[death_idx])
+            death_idx = death_idx % #death_msgs + 1
         end
+        if ui.get(killsay_revenge) then
+            revenge_target_userid = e.attacker
+        end
+        return
+    end
 
-        local full_cmd = string.format('%s "%s"', cmd, raw_text)
+    if ui.get(killsay_revenge) and revenge_target_userid and e.userid == revenge_target_userid then
+        local killed_by = attacker_ent
 
-        if delay <= 0.01 then
-            client.exec(full_cmd)
+        revenge_target_userid = nil
+
+        client.delay_call(0.05, function()
+            queue_with_delay("1")
+            if killed_by == lp then
+                client.delay_call(0.4, function()
+                    if not is_spectator() then
+                        queue_with_delay(messages[current_idx])
+                        current_idx = current_idx % #messages + 1
+                    end
+                end)
+            end
+        end)
+        return
+    end
+
+    if attacker_ent == lp and victim_ent ~= lp then
+        if e.weapon == "inferno" and ui.get(killsay_molly) then
+            queue_with_delay(molly_msgs[molly_idx])
+            molly_idx = molly_idx % #molly_msgs + 1
         else
-            client.delay_call(delay, function()
-                if ui.get(killsay_enabled) then
-                    client.exec(full_cmd)
-                end
-            end)
+            queue_with_delay(messages[current_idx])
+            current_idx = current_idx % #messages + 1
         end
     end
 end
+
+client.set_event_callback("player_disconnect", function(e)
+    if ui.get(killsay_enabled) and ui.get(killsay_revenge) and revenge_target_userid then
+        if e.userid == revenge_target_userid and not is_spectator() then
+            queue_message("rq")
+            revenge_target_userid = nil
+        end
+    end
+end)
 
 
 -- ==========================================
@@ -552,33 +611,16 @@ local buy_cmds = {
 
 local function on_round_prestart()
     if not ui.get(buybot_enabled) then return end
-
     local cmds_to_run = {}
-    local primary = ui.get(buybot_primary)
-    local secondary = ui.get(buybot_secondary)
-    local utility = ui.get(buybot_utility)
+    local primary, secondary, utility = ui.get(buybot_primary), ui.get(buybot_secondary), ui.get(buybot_utility)
 
-    if primary ~= "None" and buy_cmds[primary] then
-        table.insert(cmds_to_run, "buy " .. buy_cmds[primary])
-    end
-
-    if secondary ~= "None" and buy_cmds[secondary] then
-        table.insert(cmds_to_run, "buy " .. buy_cmds[secondary])
-    end
-
+    if primary ~= "None" and buy_cmds[primary] then table.insert(cmds_to_run, "buy " .. buy_cmds[primary]) end
+    if secondary ~= "None" and buy_cmds[secondary] then table.insert(cmds_to_run, "buy " .. buy_cmds[secondary]) end
     if #utility > 0 then
-        for i = 1, #utility do
-            if buy_cmds[utility[i]] then
-                table.insert(cmds_to_run, "buy " .. buy_cmds[utility[i]])
-            end
-        end
+        for i = 1, #utility do if buy_cmds[utility[i]] then table.insert(cmds_to_run, "buy " .. buy_cmds[utility[i]]) end end
     end
-
-    if #cmds_to_run > 0 then
-        client.exec(table.concat(cmds_to_run, "; "))
-    end
+    if #cmds_to_run > 0 then client.exec(table.concat(cmds_to_run, "; ")) end
 end
-
 
 -- ==========================================
 -- [ REGISTRO DE EVENTOS E SHUTDOWN ]
@@ -592,10 +634,7 @@ end)
 
 client.set_event_callback("weapon_fire", function(e)
     local me = entity.get_local_player()
-    local shooter = client.userid_to_entindex(e.userid)
-    if shooter == me then
-        anim_data.dt_charge = 0
-    end
+    if client.userid_to_entindex(e.userid) == me then anim_data.dt_charge = 0 end
 end)
 
 client.set_event_callback("player_death", on_killsay_player_death)
@@ -603,7 +642,4 @@ client.set_event_callback("round_prestart", on_round_prestart)
 client.set_event_callback("aim_fire", on_aim_fire)
 client.set_event_callback("aim_hit", on_aim_hit)
 client.set_event_callback("aim_miss", on_aim_miss)
-
-client.set_event_callback("shutdown", function()
-    reset_clantag()
-end)
+client.set_event_callback("shutdown", reset_clantag)
