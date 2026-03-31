@@ -43,6 +43,7 @@ local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitma
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
 local killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Trash Talk")
+local killsay_name = ui.new_checkbox(TAB, CONTAINER, "Name on Killsay")
 local killsay_death = ui.new_checkbox(TAB, CONTAINER, "Enable Deathsay (When you die)")
 local killsay_molly = ui.new_checkbox(TAB, CONTAINER, "Enable Molotov Say")
 local killsay_revenge = ui.new_checkbox(TAB, CONTAINER, "Enable Revenge Say")
@@ -76,6 +77,7 @@ local function handle_menu()
     ui.set_visible(hud_color, h_state)
 
     local k_state = ui.get(killsay_enabled)
+    ui.set_visible(killsay_name, k_state)
     ui.set_visible(killsay_death, k_state)
     ui.set_visible(killsay_molly, k_state)
     ui.set_visible(killsay_revenge, k_state)
@@ -156,7 +158,7 @@ end)
 
 
 -- ==========================================
--- [ UTILS]
+-- [ UTILS ]
 -- ==========================================
 local function trim_string(s) return s:match("^%s*(.-)%s*$") end
 local function lerp(a, b, t) return a + (b - a) * t end
@@ -166,15 +168,10 @@ local function is_active(refs)
     local val = ui.get(refs[1])
     local enabled = false
 
-    if type(val) == "boolean" then
-        enabled = val
-    elseif type(val) == "table" then
-        enabled = #val > 0
-    elseif type(val) == "string" then
-        enabled = (val ~= "Off" and val ~= "-")
-    else
-        enabled = true
-    end
+    if type(val) == "boolean" then enabled = val
+    elseif type(val) == "table" then enabled = #val > 0
+    elseif type(val) == "string" then enabled = (val ~= "Off" and val ~= "-")
+    else enabled = true end
 
     if not enabled then return false end
 
@@ -200,11 +197,8 @@ local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
 
     local style = ui.get(hud_style)
     local flag = "c"
-    if style == "Normal" then
-        flag = "c"
-    elseif style == "Bold" then
-        flag = "cb"
-    end
+    if style == "Normal" then flag = "c"
+    elseif style == "Bold" then flag = "cb" end
 
     renderer.text(x + 1, y + 1, 10, 10, 10, math.floor(current_alpha * 0.8), flag, 0, text)
     renderer.text(x, y, r, g, b, current_alpha, flag, 0, text)
@@ -240,20 +234,16 @@ local function draw_crosshair_hud()
 
     local style = ui.get(hud_style)
     local flag = "c"
-    if style == "Normal" then
-        flag = "c"
-    elseif style == "Bold" then
-        flag = "cb"
-    end
+    if style == "Normal" then flag = "c"
+    elseif style == "Bold" then flag = "cb" end
 
-    -- MIN DMG ANIMADO
     local weapon_ent = entity.get_player_weapon(me)
     if weapon_ent then
         local weapon_class = entity.get_classname(weapon_ent) or ""
         local is_knife = weapon_class:find("Knife") or weapon_class:find("Bayonet")
         local is_grenade = weapon_class:find("Grenade") or weapon_class:find("Flashbang") or
-            weapon_class:find("Molotov") or weapon_class:find("Decoy") or
-            weapon_class:find("Smoke") or weapon_class:find("Incendiary")
+                           weapon_class:find("Molotov") or weapon_class:find("Decoy") or
+                           weapon_class:find("Smoke") or weapon_class:find("Incendiary")
 
         if not is_knife and not is_grenade then
             local normal_dmg = 1
@@ -276,13 +266,9 @@ local function draw_crosshair_hud()
 
             local display_num = math.floor(dmg_anim.val + 0.5)
             local display_text = ""
-            if display_num == 0 then
-                display_text = "Auto"
-            elseif display_num > 100 then
-                display_text = "HP+" .. tostring(display_num - 100)
-            else
-                display_text = tostring(display_num)
-            end
+            if display_num == 0 then display_text = "Auto"
+            elseif display_num > 100 then display_text = "HP+" .. tostring(display_num - 100)
+            else display_text = tostring(display_num) end
 
             local target_r, target_g, target_b = 220, 180, 255
             if is_override_active then target_r, target_g, target_b = 255, 105, 180 end
@@ -294,8 +280,7 @@ local function draw_crosshair_hud()
             local dmg_x = cx + 12
             local dmg_y = cy - 15
             renderer.text(dmg_x + 1, dmg_y + 1, 10, 10, 10, math.floor(a * 0.8), flag, 0, display_text)
-            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag,
-                0, display_text)
+            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag, 0, display_text)
         end
     end
 
@@ -372,13 +357,9 @@ local function draw_screen_logs()
         local log = screen_logs[i]
         local time_alive = current_time - log.time
 
-        if time_alive < 0.2 then
-            log.alpha = time_alive / 0.2
-        elseif time_alive > 4.8 then
-            log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
-        else
-            log.alpha = 1.0
-        end
+        if time_alive < 0.2 then log.alpha = time_alive / 0.2
+        elseif time_alive > 4.8 then log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
+        else log.alpha = 1.0 end
 
         if time_alive > 5.0 then
             table.remove(screen_logs, i)
@@ -419,16 +400,7 @@ end
 
 local function on_aim_fire(e)
     anim_data.dt_charge = 0
-    aim_data[e.id] = {
-        target = e.target,
-        hit_chance = e.hit_chance,
-        damage = e.damage,
-        backtrack = globals.tickcount() -
-            e.tick,
-        x = e.x,
-        y = e.y,
-        z = e.z
-    }
+    aim_data[e.id] = { target = e.target, hit_chance = e.hit_chance, damage = e.damage, backtrack = globals.tickcount() - e.tick, x = e.x, y = e.y, z = e.z }
 end
 
 local function on_aim_hit(e)
@@ -443,8 +415,7 @@ local function on_aim_hit(e)
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
     local hp_left = entity.get_prop(e.target, "m_iHealth")
-    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup,
-        e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
+    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup, e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 255, 105, 180 })
@@ -456,8 +427,7 @@ local function on_aim_miss(e)
     if not data then return end
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
-    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason,
-        math.floor(data.hit_chance), data.backtrack)
+    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason, math.floor(data.hit_chance), data.backtrack)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 200, 60, 60 })
@@ -465,70 +435,60 @@ end
 
 
 -- ==========================================
--- [ TRASH TALK E REVENGE ]
+-- [ TRASH TALK ]
 -- ==========================================
-local messages = { "VITRIOL.lua dissolves you", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡",
-    "nn dog", "Sit down" }
+local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡", "nn dog", "Sit down", "voce foi dissolvido", "voce foi ownado" }
 local molly_msgs = { "Churrasco de random kkk", "Assado vivo", "Fogo na inveja", "Virou cinza kkk", "Dançando no fogo" }
-local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda",
-    "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
+local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda", "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
 
 local current_idx, molly_idx, death_idx = 1, 1, 1
 local revenge_target_userid = nil
 
-local vitriol_queue = {}
-local is_processing_chat = false
-local last_chat_time = 0
-local last_event_time = 0
+local next_chat_time = 0
 
 local function is_spectator()
     local lp = entity.get_local_player()
     return not lp or entity.get_prop(lp, "m_iTeamNum") == 1
 end
 
-local function process_chat_queue()
-    if #vitriol_queue == 0 then
-        is_processing_chat = false
-        return
+local function format_message(msg, victim_ent)
+    if ui.get(killsay_name) and victim_ent then
+        local victim_name = trim_string(entity.get_player_name(victim_ent) or "voce")
+        msg = msg:gsub("voce", victim_name)
     end
-
-    is_processing_chat = true
-
-    local realtime = globals.realtime()
-    if realtime - last_chat_time < 0.85 then
-        client.delay_call(0.1, process_chat_queue)
-        return
-    end
-
-    local msg = table.remove(vitriol_queue, 1)
-    client.exec('say "' .. msg .. '"')
-    last_chat_time = globals.realtime()
-
-    client.delay_call(0.85, process_chat_queue)
+    return msg
 end
 
 local function queue_message(msg)
-    table.insert(vitriol_queue, msg)
-    if not is_processing_chat then
-        process_chat_queue()
+    local current_time = globals.realtime()
+
+    if next_chat_time < current_time then
+        next_chat_time = current_time
+    end
+
+    local delay_to_exec = next_chat_time - current_time
+    next_chat_time = next_chat_time + 0.85
+
+    if delay_to_exec <= 0.01 then
+        client.exec('say "' .. msg .. '"')
+    else
+        client.delay_call(delay_to_exec, function()
+            client.exec('say "' .. msg .. '"')
+        end)
     end
 end
 
 local function queue_with_delay(msg)
-    local delay = ui.get(killsay_delay)
-    if delay <= 0.01 then
+    local user_delay = ui.get(killsay_delay)
+    if user_delay <= 0.01 then
         queue_message(msg)
     else
-        client.delay_call(delay, function() queue_message(msg) end)
+        client.delay_call(user_delay, function() queue_message(msg) end)
     end
 end
 
 local function on_killsay_player_death(e)
     if not ui.get(killsay_enabled) or is_spectator() then return end
-
-    local realtime = globals.realtime()
-    if realtime - last_event_time < 0.02 then return end
-    last_event_time = realtime
 
     local lp = entity.get_local_player()
     local attacker_ent = client.userid_to_entindex(e.attacker)
@@ -536,7 +496,8 @@ local function on_killsay_player_death(e)
 
     if victim_ent == lp and attacker_ent ~= lp and attacker_ent then
         if ui.get(killsay_death) then
-            queue_with_delay(death_msgs[death_idx])
+            local msg = format_message(death_msgs[death_idx], attacker_ent)
+            queue_with_delay(msg)
             death_idx = death_idx % #death_msgs + 1
         end
         if ui.get(killsay_revenge) then
@@ -547,7 +508,6 @@ local function on_killsay_player_death(e)
 
     if ui.get(killsay_revenge) and revenge_target_userid and e.userid == revenge_target_userid then
         local killed_by = attacker_ent
-
         revenge_target_userid = nil
 
         client.delay_call(0.05, function()
@@ -555,7 +515,8 @@ local function on_killsay_player_death(e)
             if killed_by == lp then
                 client.delay_call(0.4, function()
                     if not is_spectator() then
-                        queue_with_delay(messages[current_idx])
+                        local msg = format_message(messages[current_idx], victim_ent)
+                        queue_with_delay(msg)
                         current_idx = current_idx % #messages + 1
                     end
                 end)
@@ -566,10 +527,12 @@ local function on_killsay_player_death(e)
 
     if attacker_ent == lp and victim_ent ~= lp then
         if e.weapon == "inferno" and ui.get(killsay_molly) then
-            queue_with_delay(molly_msgs[molly_idx])
+            local msg = format_message(molly_msgs[molly_idx], victim_ent)
+            queue_with_delay(msg)
             molly_idx = molly_idx % #molly_msgs + 1
         else
-            queue_with_delay(messages[current_idx])
+            local msg = format_message(messages[current_idx], victim_ent)
+            queue_with_delay(msg)
             current_idx = current_idx % #messages + 1
         end
     end
@@ -589,24 +552,12 @@ end)
 -- [ BUYBOT ]
 -- ==========================================
 local buy_cmds = {
-    ["Auto"] = "scar20",
-    ["Scout"] = "ssg08",
-    ["Awp"] = "awp",
-    ["Primary rifle"] = "ak47",
-    ["Scoped rifle"] = "sg556",
-    ["Machine gun"] = "negev",
-    ["Default pistol"] = "glock",
-    ["P250"] = "p250",
-    ["Dual Berettas"] = "elite",
-    ["Light pistol"] = "tec9",
-    ["Heavy pistol"] = "deagle",
-    ["Grenade"] = "hegrenade",
-    ["Smoke"] = "smokegrenade",
-    ["Incendiary"] = "molotov",
-    ["Flashbang"] = "flashbang",
-    ["Kevlar + Helmet"] = "vesthelm",
-    ["Defuse kit"] = "defuser",
-    ["Zeus"] = "taser"
+    ["Auto"] = "scar20", ["Scout"] = "ssg08", ["Awp"] = "awp", ["Primary rifle"] = "ak47",
+    ["Scoped rifle"] = "sg556", ["Machine gun"] = "negev", ["Default pistol"] = "glock",
+    ["P250"] = "p250", ["Dual Berettas"] = "elite", ["Light pistol"] = "tec9",
+    ["Heavy pistol"] = "deagle", ["Grenade"] = "hegrenade", ["Smoke"] = "smokegrenade",
+    ["Incendiary"] = "molotov", ["Flashbang"] = "flashbang", ["Kevlar + Helmet"] = "vesthelm",
+    ["Defuse kit"] = "defuser", ["Zeus"] = "taser"
 }
 
 local function on_round_prestart()
