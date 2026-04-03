@@ -16,6 +16,7 @@ local ref_sp = get_refs("Rage", "Aimbot", "Force safe point")
 local ref_fs = get_refs("AA", "Anti-aimbot angles", "Freestanding")
 local ref_dmg = get_refs("RAGE", "Aimbot", "Minimum damage")
 local ref_ovr = get_refs("RAGE", "Aimbot", "Minimum damage override")
+local ref_qpeek = get_refs("Rage", "Other", "Quick peek assist")
 
 -- ==========================================
 -- [ MENU UI ]
@@ -68,8 +69,10 @@ local drop_nades_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Nade Dropper"
 local drop_nades_hotkey = ui.new_hotkey(TAB, CONTAINER, "Nade Dropper Hotkey", true)
 local drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop",
     { "HE", "Smoke", "Molotov", "Flashbang", "Decoy" })
+
 local quick_switch_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Quick Switch")
 local quick_switch_select = ui.new_multiselect(TAB, CONTAINER, "Quick Switch Weapons", { "AWP", "Scout" })
+local knife_retreat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Knife Retreat (Auto Peek)")
 
 ui.new_label(TAB, CONTAINER, "=========================")
 
@@ -247,7 +250,7 @@ local nade_drop_queue = {}
 local nade_drop_throwing = false
 local nade_drop_old_state = false
 
-local function on_setup_command(cmd)
+local function handle_nade_dropper(cmd)
     if not ui.get(drop_nades_enabled) then return end
 
     local me = entity.get_local_player()
@@ -791,15 +794,12 @@ local function on_round_prestart()
 end
 
 -- ==========================================
--- [ REGISTRO DE EVENTOS E SHUTDOWN ]
+-- [ QUICK SWITCH E KNIFE RETREAT ]
 -- ==========================================
-client.set_event_callback("paint", function()
-    update_clantag()
-    draw_crosshair_hud()
-    draw_slowdown_warning()
-    draw_screen_logs()
-    draw_3d_hitmarkers()
-end)
+local retreat_data = {
+    is_retreating = false,
+    start_time = 0
+}
 
 local function handle_quick_switch(weapon_name)
     if not ui.get(quick_switch_enabled) then return end
@@ -820,11 +820,56 @@ local function handle_quick_switch(weapon_name)
     end
 end
 
+-- ==========================================
+-- [ REGISTRO DE EVENTOS E SHUTDOWN ]
+-- ==========================================
+local function on_setup_command(cmd)
+    handle_nade_dropper(cmd)
+
+    if retreat_data.is_retreating then
+        local me = entity.get_local_player()
+        if not me or not entity.is_alive(me) then
+            retreat_data.is_retreating = false
+            return
+        end
+
+        local vx, vy, vz = entity.get_prop(me, "m_vecVelocity")
+        local speed = math.sqrt(vx * vx + vy * vy)
+        local time_passed = globals.realtime() - retreat_data.start_time
+
+        local qp_active = ui.get(ref_qpeek[1]) and ui.get(ref_qpeek[2])
+
+        if not qp_active or (time_passed > 0.25 and speed < 25) then
+            client.exec("slot1")
+            retreat_data.is_retreating = false
+        end
+    end
+end
+
+client.set_event_callback("paint", function()
+    update_clantag()
+    draw_crosshair_hud()
+    draw_slowdown_warning()
+    draw_screen_logs()
+    draw_3d_hitmarkers()
+end)
+
 client.set_event_callback("weapon_fire", function(e)
     local me = entity.get_local_player()
     if client.userid_to_entindex(e.userid) == me then
         anim_data.dt_charge = 0
-        handle_quick_switch(e.weapon)
+
+        local qp_active = ui.get(ref_qpeek[1]) and ui.get(ref_qpeek[2])
+        if ui.get(knife_retreat_enabled) and qp_active then
+            retreat_data.is_retreating = true
+            retreat_data.start_time = globals.realtime()
+
+            client.delay_call(0.02, function()
+                client.exec("slot3")
+            end)
+        else
+            handle_quick_switch(e.weapon)
+        end
     end
 end)
 
