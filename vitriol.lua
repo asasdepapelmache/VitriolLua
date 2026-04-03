@@ -74,6 +74,7 @@ local drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop",
 local quick_switch_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Quick Switch")
 local quick_switch_select = ui.new_multiselect(TAB, CONTAINER, "Quick Switch Weapons", { "AWP", "Scout" })
 local knife_retreat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Knife Retreat (Auto Peek)")
+local sync_hotkeys_enabled = ui.new_checkbox(TAB, CONTAINER, "Sync Ragebot Hotkeys")
 
 ui.new_label(TAB, CONTAINER, "=========================")
 
@@ -160,7 +161,6 @@ local function handle_menu()
 
     -- Trash Talk
     local k_state = ui.get(killsay_enabled)
-    ui.set_visible(killsay_enabled, k_state)
     ui.set_visible(killsay_name, k_state)
     ui.set_visible(killsay_death, k_state)
     ui.set_visible(killsay_molly, k_state)
@@ -239,6 +239,62 @@ local function table_contains(tbl, val)
     end
     return false
 end
+
+-- ==========================================
+-- [ RAGEBOT HOTKEY SYNC ]
+-- ==========================================
+local syncing = true
+
+local hotkey_type_names = {
+    [0] = "Always on",
+    "On hotkey",
+    "Toggle",
+    "Off hotkey"
+}
+
+local weapon_names = {
+    "Global", "G3SG1 / SCAR-20", "SSG 08", "AWP", "R8 Revolver",
+    "Desert Eagle", "Pistol", "Zeus", "Rifle", "Shotgun", "SMG", "Machine gun"
+}
+
+local weapon_type_ref = ui.reference("RAGE", "Weapon type", "Weapon type")
+
+local function sync_hotkey_to_all(ref)
+    if not syncing or not ui.get(sync_hotkeys_enabled) then return end
+
+    local _, htype_num, bind = ui.get(ref)
+    local htype_str = hotkey_type_names[htype_num] or "Always on"
+    bind = bind or 0
+
+    local current_weapon = ui.get(weapon_type_ref)
+
+    for i = 1, #weapon_names do
+        ui.set(weapon_type_ref, weapon_names[i])
+        ui.set(ref, htype_str, bind)
+    end
+
+    ui.set(weapon_type_ref, current_weapon)
+end
+
+local sync_refs = {
+    select(2, ui.reference("RAGE", "Aimbot", "Enabled")),
+    select(2, ui.reference("RAGE", "Aimbot", "Multi-point")),
+    select(2, ui.reference("RAGE", "Aimbot", "Minimum damage override")),
+    select(1, ui.reference("RAGE", "Aimbot", "Force safe point")),
+    select(1, ui.reference("RAGE", "Aimbot", "Force body aim")),
+    select(2, ui.reference("RAGE", "Aimbot", "Quick stop")),
+    select(2, ui.reference("RAGE", "Aimbot", "Double tap")),
+}
+
+for i = 1, #sync_refs do
+    local ref = sync_refs[i]
+    if ui.type(ref) == "hotkey" then
+        ui.set_callback(ref, function()
+            sync_hotkey_to_all(ref)
+        end)
+    end
+end
+
 
 -- ==========================================
 -- [ NADE DROPPER ]
@@ -909,3 +965,61 @@ client.set_event_callback("aim_fire", on_aim_fire)
 client.set_event_callback("aim_hit", on_aim_hit)
 client.set_event_callback("aim_miss", on_aim_miss)
 client.set_event_callback("shutdown", reset_clantag)
+
+-- ==========================================
+-- [ RAGEBOT HOTKEY SYNC ]
+-- ==========================================
+local syncing = true
+
+local hotkey_type_names = {
+    [0] = "Always on",
+    "On hotkey",
+    "Toggle",
+    "Off hotkey"
+}
+
+local weapon_names = {
+    "Global", "G3SG1 / SCAR-20", "SSG 08", "AWP", "R8 Revolver",
+    "Desert Eagle", "Pistol", "Zeus", "Rifle", "Shotgun", "SMG", "Machine gun"
+}
+
+local weapon_type_ref = ui.reference("RAGE", "Weapon type", "Weapon type")
+
+local function sync_hotkey_to_all(ref)
+    if not syncing or not ui.get(sync_hotkeys_enabled) then return end
+
+    local _, htype_num, bind = ui.get(ref)
+    local htype_str = hotkey_type_names[htype_num] or "Always on"
+    bind = bind or 0
+
+    local current_weapon = ui.get(weapon_type_ref)
+
+    for i = 1, #weapon_names do
+        ui.set(weapon_type_ref, weapon_names[i])
+        ui.set(ref, htype_str, bind)
+    end
+
+    ui.set(weapon_type_ref, current_weapon)
+end
+
+local sync_refs = {
+    select(2, ui.reference("RAGE", "Aimbot", "Enabled")),
+    select(2, ui.reference("RAGE", "Aimbot", "Multi-point")),
+    select(2, ui.reference("RAGE", "Aimbot", "Minimum damage override")),
+    select(1, ui.reference("RAGE", "Aimbot", "Force safe point")),
+    select(1, ui.reference("RAGE", "Aimbot", "Force body aim")),
+    select(2, ui.reference("RAGE", "Aimbot", "Quick stop")),
+    select(2, ui.reference("RAGE", "Aimbot", "Double tap")),
+}
+
+for i = 1, #sync_refs do
+    local ref = sync_refs[i]
+    if ui.type(ref) == "hotkey" then
+        ui.set_callback(ref, function()
+            sync_hotkey_to_all(ref)
+        end)
+    end
+end
+
+client.set_event_callback("pre_config_load", function() syncing = false end)
+client.set_event_callback("post_config_load", function() syncing = true end)
