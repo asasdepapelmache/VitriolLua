@@ -68,6 +68,8 @@ local drop_nades_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Nade Dropper"
 local drop_nades_hotkey = ui.new_hotkey(TAB, CONTAINER, "Nade Dropper Hotkey", true)
 local drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop",
     { "HE", "Smoke", "Molotov", "Flashbang", "Decoy" })
+local quick_switch_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Quick Switch")
+local quick_switch_select = ui.new_multiselect(TAB, CONTAINER, "Quick Switch Weapons", { "AWP", "Scout" })
 
 ui.new_label(TAB, CONTAINER, "=========================")
 
@@ -167,6 +169,9 @@ local function handle_menu()
     local m_state = ui.get(drop_nades_enabled)
     ui.set_visible(drop_nades_hotkey, m_state)
     ui.set_visible(drop_nades_select, m_state)
+
+    local qs_state = ui.get(quick_switch_enabled)
+    ui.set_visible(quick_switch_select, qs_state)
 end
 
 ui.set_callback(clantag_enabled, function()
@@ -184,6 +189,7 @@ ui.set_callback(slowdown_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 ui.set_callback(drop_nades_enabled, handle_menu)
+ui.set_callback(quick_switch_enabled, handle_menu)
 
 handle_menu()
 
@@ -304,6 +310,7 @@ local anim_data = { dt = 0, dt_charge = 1.0, hs = 0, fs = 0, fd = 0, baim = 0, s
 local dmg_anim = { val = 0, r = 220, g = 180, b = 255 }
 local bit_band = bit.band
 local math_sqrt = math.sqrt
+local slowdown_anim_alpha = 0
 
 local function draw_slowdown_warning()
     if not ui.get(slowdown_enabled) then return end
@@ -522,7 +529,7 @@ local function add_screen_log(text, color)
 end
 
 local function draw_screen_logs()
-    if not ui.get(logs_enabled) or #screen_logs == 0 then return end
+    if not ui.get(logs_enabled) then return end
 
     local sw, sh = client.screen_size()
     local x, y = 10, sh / 2 + 100
@@ -776,7 +783,9 @@ local function on_round_prestart()
     if primary ~= "None" and buy_cmds[primary] then table.insert(cmds_to_run, "buy " .. buy_cmds[primary]) end
     if secondary ~= "None" and buy_cmds[secondary] then table.insert(cmds_to_run, "buy " .. buy_cmds[secondary]) end
     if #utility > 0 then
-        for i = 1, #utility do if buy_cmds[utility[i]] then table.insert(cmds_to_run, "buy " .. buy_cmds[utility[i]]) end end
+        for i = 1, #utility do
+            if buy_cmds[utility[i]] then table.insert(cmds_to_run, "buy " .. buy_cmds[utility[i]]) end
+        end
     end
     if #cmds_to_run > 0 then client.exec(table.concat(cmds_to_run, "; ")) end
 end
@@ -792,9 +801,31 @@ client.set_event_callback("paint", function()
     draw_3d_hitmarkers()
 end)
 
+local function handle_quick_switch(weapon_name)
+    if not ui.get(quick_switch_enabled) then return end
+
+    local selected_weapons = ui.get(quick_switch_select)
+    local should_switch = false
+
+    if table_contains(selected_weapons, "AWP") and (weapon_name == "awp" or weapon_name == "weapon_awp") then should_switch = true end
+    if table_contains(selected_weapons, "Scout") and (weapon_name == "ssg08" or weapon_name == "weapon_ssg08") then should_switch = true end
+
+    if should_switch then
+        client.delay_call(0.02, function()
+            client.exec("slot3")
+            client.delay_call(0.05, function()
+                client.exec("slot1")
+            end)
+        end)
+    end
+end
+
 client.set_event_callback("weapon_fire", function(e)
     local me = entity.get_local_player()
-    if client.userid_to_entindex(e.userid) == me then anim_data.dt_charge = 0 end
+    if client.userid_to_entindex(e.userid) == me then
+        anim_data.dt_charge = 0
+        handle_quick_switch(e.weapon)
+    end
 end)
 
 client.set_event_callback("setup_command", on_setup_command)
