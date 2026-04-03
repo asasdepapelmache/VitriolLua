@@ -39,6 +39,7 @@ local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 1
 -- Logs na Tela & Hitmarker
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
 local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
+local logs_pos_ui = ui.new_combobox(TAB, CONTAINER, "Screen Logs Position", { "Left (Default)", "Neverlose", "Center" })
 local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
 local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)" })
 local slowdown_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Slowdown Warning")
@@ -154,8 +155,12 @@ local function handle_menu()
     local sd_state = ui.get(slowdown_enabled)
     ui.set_visible(slowdown_color, sd_state)
 
+    local lg_state = ui.get(logs_enabled)
+    ui.set_visible(logs_pos_ui, lg_state)
+
     -- Trash Talk
     local k_state = ui.get(killsay_enabled)
+    ui.set_visible(killsay_enabled, k_state)
     ui.set_visible(killsay_name, k_state)
     ui.set_visible(killsay_death, k_state)
     ui.set_visible(killsay_molly, k_state)
@@ -189,6 +194,7 @@ ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
 ui.set_callback(slowdown_enabled, handle_menu)
+ui.set_callback(logs_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 ui.set_callback(drop_nades_enabled, handle_menu)
@@ -532,11 +538,27 @@ local function add_screen_log(text, color)
 end
 
 local function draw_screen_logs()
-    if not ui.get(logs_enabled) then return end
+    if not ui.get(logs_enabled) or #screen_logs == 0 then return end
 
     local sw, sh = client.screen_size()
-    local x, y = 10, sh / 2 + 100
+    local pos_style = ui.get(logs_pos_ui)
     local current_time = globals.realtime()
+
+    local base_x, base_y = 10, sh / 2 + 100
+    local align_right = false
+    local center_x = false
+    local stack_dir = -1
+
+    if pos_style == "Neverlose" then
+        base_x = 10
+        base_y = 10
+        stack_dir = 1
+    elseif pos_style == "Center" then
+        center_x = true
+        base_y = sh / 2 + 200
+    end
+
+    local y = base_y
 
     for i = #screen_logs, 1, -1 do
         local log = screen_logs[i]
@@ -555,11 +577,18 @@ local function draw_screen_logs()
         else
             local a = math.max(0, math.floor(log.alpha * 255))
             local tw, th = renderer.measure_text("", log.text)
-            renderer.rectangle(x, y, tw + 20, 20, 15, 15, 15, math.floor(a * 0.6))
-            renderer.rectangle(x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
-            renderer.text(x + 5, y + 4, log.color[1], log.color[2], log.color[3], a, "", 0, "❤")
-            renderer.text(x + 18, y + 4, 255, 255, 255, a, "", 0, log.text)
-            y = y - 22
+            local box_w = tw + 20
+            local draw_x = base_x
+
+            if center_x then
+                draw_x = (sw / 2) - (box_w / 2)
+            end
+
+            renderer.rectangle(draw_x, y, box_w, 20, 15, 15, 15, math.floor(a * 0.6))
+            renderer.rectangle(draw_x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
+            renderer.text(draw_x + 5, y + 4, log.color[1], log.color[2], log.color[3], a, "", 0, "❤")
+            renderer.text(draw_x + 18, y + 4, 255, 255, 255, a, "", 0, log.text)
+            y = y + (22 * stack_dir)
         end
     end
 end
