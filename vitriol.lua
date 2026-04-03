@@ -64,47 +64,7 @@ ui.new_label(TAB, CONTAINER, "=========================")
 
 
 -- ==========================================
--- [ VISIBILITY HANDLER ]
--- ==========================================
-local function handle_menu()
-    local c_state = ui.get(clantag_enabled)
-    local c_type = ui.get(clantag_type)
-    ui.set_visible(clantag_type, c_state)
-    ui.set_visible(clantag_speed, c_state and c_type == "Animated")
-    ui.set_visible(clantag_sync, c_state and c_type == "Animated")
-
-    local h_state = ui.get(hud_enabled)
-    ui.set_visible(hud_style, h_state)
-    ui.set_visible(hud_color, h_state)
-
-    local hm_state = ui.get(hitmarker_enabled)
-    ui.set_visible(hitmarker_style, hm_state)
-
-    local k_state = ui.get(killsay_enabled)
-    ui.set_visible(killsay_name, k_state)
-    ui.set_visible(killsay_death, k_state)
-    ui.set_visible(killsay_molly, k_state)
-    ui.set_visible(killsay_revenge, k_state)
-    ui.set_visible(killsay_delay, k_state)
-
-    local b_state = ui.get(buybot_enabled)
-    ui.set_visible(buybot_primary, b_state)
-    ui.set_visible(buybot_secondary, b_state)
-    ui.set_visible(buybot_utility, b_state)
-end
-
-ui.set_callback(clantag_enabled, handle_menu)
-ui.set_callback(clantag_type, handle_menu)
-ui.set_callback(hud_enabled, handle_menu)
-ui.set_callback(hitmarker_enabled, handle_menu)
-ui.set_callback(killsay_enabled, handle_menu)
-ui.set_callback(buybot_enabled, handle_menu)
-
-handle_menu()
-
-
--- ==========================================
--- [ CLANTAG ]
+-- [ CLANTAG FUNCTIONS ]
 -- ==========================================
 local clantag_frames = {
     " ", "V", "Vi", "Vit", "Vitr", "Vitri", "Vitrio", "Vitriol", "Vitriol.", "Vitriol.l", "Vitriol.lu", "Vitriol.lua",
@@ -157,9 +117,57 @@ local function reset_clantag()
     current_frame = 1
 end
 
+
+-- ==========================================
+-- [ VISIBILITY HANDLER (CORRIGIDO) ]
+-- ==========================================
+local function handle_menu()
+    -- Clantag
+    local c_state = ui.get(clantag_enabled)
+    local c_type = ui.get(clantag_type)
+    ui.set_visible(clantag_type, c_state)
+    ui.set_visible(clantag_speed, c_state and c_type == "Animated")
+    ui.set_visible(clantag_sync, c_state and c_type == "Animated")
+
+    -- HUD
+    local h_state = ui.get(hud_enabled)
+    ui.set_visible(hud_style, h_state)
+    ui.set_visible(hud_color, h_state)
+
+    -- Hitmarker
+    local hm_state = ui.get(hitmarker_enabled)
+    ui.set_visible(hitmarker_style, hm_state)
+
+    -- Trash Talk
+    local k_state = ui.get(killsay_enabled)
+    ui.set_visible(killsay_name, k_state)
+    ui.set_visible(killsay_death, k_state)
+    ui.set_visible(killsay_molly, k_state)
+    ui.set_visible(killsay_revenge, k_state)
+    ui.set_visible(killsay_delay, k_state)
+
+    -- Buybot
+    local b_state = ui.get(buybot_enabled)
+    ui.set_visible(buybot_primary, b_state)
+    ui.set_visible(buybot_secondary, b_state)
+    ui.set_visible(buybot_utility, b_state)
+end
+
 ui.set_callback(clantag_enabled, function()
-    if not ui.get(clantag_enabled) then reset_clantag() end
+    handle_menu()
+    if not ui.get(clantag_enabled) then
+        reset_clantag()
+    end
 end)
+
+-- Callbacks Normais
+ui.set_callback(clantag_type, handle_menu)
+ui.set_callback(hud_enabled, handle_menu)
+ui.set_callback(hitmarker_enabled, handle_menu)
+ui.set_callback(killsay_enabled, handle_menu)
+ui.set_callback(buybot_enabled, handle_menu)
+
+handle_menu()
 
 
 -- ==========================================
@@ -383,7 +391,6 @@ end
 local function draw_3d_hitmarkers()
     if not ui.get(hitmarker_enabled) or #hit_markers == 0 then return end
 
-    -- Sistema inteligente: Icone unicode vs Texto normal
     local style = ui.get(hitmarker_style)
     local symbol = style == "Icon (❤)" and "❤" or "<3"
     local flag = style == "Icon (❤)" and "c" or "cb"
@@ -447,7 +454,7 @@ end
 -- ==========================================
 -- [ TRASH TALK ]
 -- ==========================================
-local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡", "nn dog", "Sit down", "voce foi dissolvido", "voce foi ownado" }
+local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡", "voce foi ownado", "voce foi dissolvido" }
 local molly_msgs = { "Churrasco de random kkk", "Assado vivo", "Fogo na inveja", "Virou cinza kkk", "Dançando no fogo" }
 local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda", "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
 
