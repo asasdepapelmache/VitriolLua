@@ -40,6 +40,8 @@ ui.new_label(TAB, CONTAINER, "--- Visuals ---")
 local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
 local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
 local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)" })
+local slowdown_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Slowdown Warning")
+local slowdown_color = ui.new_color_picker(TAB, CONTAINER, "Slowdown Accent Color", 255, 105, 180, 255)
 
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
@@ -141,9 +143,11 @@ local function handle_menu()
     ui.set_visible(hud_style, h_state)
     ui.set_visible(hud_color, h_state)
 
-    -- Hitmarker
+    -- Visuals
     local hm_state = ui.get(hitmarker_enabled)
     ui.set_visible(hitmarker_style, hm_state)
+    local sd_state = ui.get(slowdown_enabled)
+    ui.set_visible(slowdown_color, sd_state)
 
     -- Trash Talk
     local k_state = ui.get(killsay_enabled)
@@ -176,6 +180,7 @@ end)
 ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
+ui.set_callback(slowdown_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 ui.set_callback(drop_nades_enabled, handle_menu)
@@ -293,12 +298,62 @@ end
 
 
 -- ==========================================
--- [ INDICADORES DA HUD ]
+-- [ INDICADORES DA HUD E SLOWDOWN ]
 -- ==========================================
 local anim_data = { dt = 0, dt_charge = 1.0, hs = 0, fs = 0, fd = 0, baim = 0, sp = 0 }
 local dmg_anim = { val = 0, r = 220, g = 180, b = 255 }
 local bit_band = bit.band
 local math_sqrt = math.sqrt
+
+local function draw_slowdown_warning()
+    if not ui.get(slowdown_enabled) then return end
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+
+    local velocity_modifier = entity.get_prop(me, "m_flVelocityModifier") or 1.0
+
+    local fade_threshold = 0.95
+    local fade_alpha = 1.0
+
+    if velocity_modifier > fade_threshold then
+        fade_alpha = (1.0 - velocity_modifier) / (1.0 - fade_threshold)
+        fade_alpha = math.max(0, math.min(1, fade_alpha))
+    end
+
+    if fade_alpha <= 0.01 then return end
+
+    local sw, sh = client.screen_size()
+    local cx = sw / 2
+    local cy = sh / 2
+
+    local bar_width = 174
+    local bar_height = 8
+    local bar_x = cx - (bar_width / 2)
+    local bar_y = cy - (cy / 1.5)
+
+    local fill_width = math.floor(bar_width * velocity_modifier)
+
+    local r, g, b, a = ui.get(slowdown_color)
+    local final_a = math.floor(a * fade_alpha)
+    local bg_a = math.floor(255 * fade_alpha)
+
+    renderer.rectangle(bar_x, bar_y, bar_width, bar_height, 25, 25, 25, math.floor(bg_a * 0.8))
+
+    if fill_width > 0 then
+        renderer.rectangle(bar_x, bar_y, fill_width, bar_height, r, g, b, final_a)
+
+        for i = 1, 3 do
+            local glow_a = math.floor(final_a / (i * 2.5))
+            renderer.rectangle(bar_x - i, bar_y - i, fill_width + (i * 2), bar_height + (i * 2), r, g, b, glow_a)
+        end
+    end
+
+    local percentage = (1.0 - velocity_modifier) * 100
+    local text = string.format("Max velocity reduced by %.0f%%", percentage)
+
+    renderer.text(cx + 1, bar_y - 12 + 1, 10, 10, 10, math.floor(final_a * 0.8), "c", 0, text)
+    renderer.text(cx, bar_y - 12, 255, 255, 255, final_a, "c", 0, text)
+end
 
 local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
     if value <= 0 then return y end
@@ -528,8 +583,16 @@ end
 
 local function on_aim_fire(e)
     anim_data.dt_charge = 0
-    aim_data[e.id] = { target = e.target, hit_chance = e.hit_chance, damage = e.damage, backtrack = globals.tickcount() -
-    e.tick, x = e.x, y = e.y, z = e.z }
+    aim_data[e.id] = {
+        target = e.target,
+        hit_chance = e.hit_chance,
+        damage = e.damage,
+        backtrack = globals.tickcount() -
+            e.tick,
+        x = e.x,
+        y = e.y,
+        z = e.z
+    }
 end
 
 local function on_aim_hit(e)
@@ -724,6 +787,7 @@ end
 client.set_event_callback("paint", function()
     update_clantag()
     draw_crosshair_hud()
+    draw_slowdown_warning()
     draw_screen_logs()
     draw_3d_hitmarkers()
 end)
