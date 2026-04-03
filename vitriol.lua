@@ -60,6 +60,13 @@ local buybot_secondary = ui.new_combobox(TAB, CONTAINER, "Secondary weapon",
 local buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility",
     { "Grenade", "Smoke", "Incendiary", "Flashbang", "Kevlar + Helmet", "Defuse kit", "Zeus" })
 
+-- Misc
+ui.new_label(TAB, CONTAINER, "--- Misc ---")
+local drop_nades_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Nade Dropper")
+local drop_nades_hotkey = ui.new_hotkey(TAB, CONTAINER, "Nade Dropper Hotkey", true)
+local drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop",
+    { "HE", "Smoke", "Molotov", "Flashbang", "Decoy" })
+
 ui.new_label(TAB, CONTAINER, "=========================")
 
 
@@ -119,7 +126,7 @@ end
 
 
 -- ==========================================
--- [ VISIBILITY HANDLER (CORRIGIDO) ]
+-- [ VISIBILITY HANDLER ]
 -- ==========================================
 local function handle_menu()
     -- Clantag
@@ -151,6 +158,11 @@ local function handle_menu()
     ui.set_visible(buybot_primary, b_state)
     ui.set_visible(buybot_secondary, b_state)
     ui.set_visible(buybot_utility, b_state)
+
+    -- Misc
+    local m_state = ui.get(drop_nades_enabled)
+    ui.set_visible(drop_nades_hotkey, m_state)
+    ui.set_visible(drop_nades_select, m_state)
 end
 
 ui.set_callback(clantag_enabled, function()
@@ -166,6 +178,7 @@ ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
+ui.set_callback(drop_nades_enabled, handle_menu)
 
 handle_menu()
 
@@ -181,10 +194,15 @@ local function is_active(refs)
     local val = ui.get(refs[1])
     local enabled = false
 
-    if type(val) == "boolean" then enabled = val
-    elseif type(val) == "table" then enabled = #val > 0
-    elseif type(val) == "string" then enabled = (val ~= "Off" and val ~= "-")
-    else enabled = true end
+    if type(val) == "boolean" then
+        enabled = val
+    elseif type(val) == "table" then
+        enabled = #val > 0
+    elseif type(val) == "string" then
+        enabled = (val ~= "Off" and val ~= "-")
+    else
+        enabled = true
+    end
 
     if not enabled then return false end
 
@@ -193,6 +211,84 @@ local function is_active(refs)
     end
 
     return true
+end
+
+local function table_contains(tbl, val)
+    for i = 1, #tbl do
+        if tbl[i] == val then return true end
+    end
+    return false
+end
+
+-- ==========================================
+-- [ NADE DROPPER ]
+-- ==========================================
+local nade_mappings = {
+    ["CHEGrenade"] = { cmd = "weapon_hegrenade", menu = "HE" },
+    ["CSmokeGrenade"] = { cmd = "weapon_smokegrenade", menu = "Smoke" },
+    ["CMolotovGrenade"] = { cmd = "weapon_molotov", menu = "Molotov" },
+    ["CIncendiaryGrenade"] = { cmd = "weapon_incgrenade", menu = "Molotov" },
+    ["CFlashbang"] = { cmd = "weapon_flashbang", menu = "Flashbang" },
+    ["CDecoyGrenade"] = { cmd = "weapon_decoy", menu = "Decoy" }
+}
+
+local nade_drop_queue = {}
+local nade_drop_throwing = false
+local nade_drop_old_state = false
+
+local function on_setup_command(cmd)
+    if not ui.get(drop_nades_enabled) then return end
+
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+
+    local state = ui.get(drop_nades_hotkey)
+    if state and not nade_drop_old_state and not nade_drop_throwing then
+        nade_drop_queue = {}
+        local selected = ui.get(drop_nades_select)
+
+        for i = 0, 63 do
+            local weapon_ent = entity.get_prop(me, "m_hMyWeapons", i)
+            if weapon_ent and weapon_ent ~= 0 and weapon_ent ~= -1 then
+                local class_name = entity.get_classname(weapon_ent)
+                local mapped = nade_mappings[class_name]
+                if mapped and table_contains(selected, mapped.menu) then
+                    table.insert(nade_drop_queue, mapped.cmd)
+                end
+            end
+        end
+
+        if #nade_drop_queue > 0 then
+            nade_drop_throwing = true
+        end
+    end
+    nade_drop_old_state = state
+
+    if #nade_drop_queue > 0 then
+        local latency = client.latency() + (globals.tickinterval() * 4)
+
+        for i, weapon_cmd in ipairs(nade_drop_queue) do
+            local is_last = (i == #nade_drop_queue)
+            client.delay_call(latency * i, function()
+                client.exec("use " .. weapon_cmd .. "; drop")
+                if is_last then
+                    client.delay_call(0.1, function()
+                        nade_drop_throwing = false
+                    end)
+                end
+            end)
+        end
+        nade_drop_queue = {}
+    end
+
+    if nade_drop_throwing then
+        local pitch, yaw = client.camera_angles()
+        local offset = pitch > 0 and -0.0001 or 0.0001
+        cmd.yaw = yaw
+        cmd.pitch = pitch + offset
+        cmd.no_choke = true
+        cmd.allow_send_packet = true
+    end
 end
 
 
@@ -210,8 +306,11 @@ local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
 
     local style = ui.get(hud_style)
     local flag = "c"
-    if style == "Normal" then flag = "c"
-    elseif style == "Bold" then flag = "cb" end
+    if style == "Normal" then
+        flag = "c"
+    elseif style == "Bold" then
+        flag = "cb"
+    end
 
     renderer.text(x + 1, y + 1, 10, 10, 10, math.floor(current_alpha * 0.8), flag, 0, text)
     renderer.text(x, y, r, g, b, current_alpha, flag, 0, text)
@@ -247,16 +346,19 @@ local function draw_crosshair_hud()
 
     local style = ui.get(hud_style)
     local flag = "c"
-    if style == "Normal" then flag = "c"
-    elseif style == "Bold" then flag = "cb" end
+    if style == "Normal" then
+        flag = "c"
+    elseif style == "Bold" then
+        flag = "cb"
+    end
 
     local weapon_ent = entity.get_player_weapon(me)
     if weapon_ent then
         local weapon_class = entity.get_classname(weapon_ent) or ""
         local is_knife = weapon_class:find("Knife") or weapon_class:find("Bayonet")
         local is_grenade = weapon_class:find("Grenade") or weapon_class:find("Flashbang") or
-                           weapon_class:find("Molotov") or weapon_class:find("Decoy") or
-                           weapon_class:find("Smoke") or weapon_class:find("Incendiary")
+            weapon_class:find("Molotov") or weapon_class:find("Decoy") or
+            weapon_class:find("Smoke") or weapon_class:find("Incendiary")
 
         if not is_knife and not is_grenade then
             local normal_dmg = 1
@@ -279,9 +381,13 @@ local function draw_crosshair_hud()
 
             local display_num = math.floor(dmg_anim.val + 0.5)
             local display_text = ""
-            if display_num == 0 then display_text = "Auto"
-            elseif display_num > 100 then display_text = "HP+" .. tostring(display_num - 100)
-            else display_text = tostring(display_num) end
+            if display_num == 0 then
+                display_text = "Auto"
+            elseif display_num > 100 then
+                display_text = "HP+" .. tostring(display_num - 100)
+            else
+                display_text = tostring(display_num)
+            end
 
             local target_r, target_g, target_b = 220, 180, 255
             if is_override_active then target_r, target_g, target_b = 255, 105, 180 end
@@ -293,7 +399,8 @@ local function draw_crosshair_hud()
             local dmg_x = cx + 12
             local dmg_y = cy - 15
             renderer.text(dmg_x + 1, dmg_y + 1, 10, 10, 10, math.floor(a * 0.8), flag, 0, display_text)
-            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag, 0, display_text)
+            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag,
+                0, display_text)
         end
     end
 
@@ -370,9 +477,13 @@ local function draw_screen_logs()
         local log = screen_logs[i]
         local time_alive = current_time - log.time
 
-        if time_alive < 0.2 then log.alpha = time_alive / 0.2
-        elseif time_alive > 4.8 then log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
-        else log.alpha = 1.0 end
+        if time_alive < 0.2 then
+            log.alpha = time_alive / 0.2
+        elseif time_alive > 4.8 then
+            log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
+        else
+            log.alpha = 1.0
+        end
 
         if time_alive > 5.0 then
             table.remove(screen_logs, i)
@@ -417,7 +528,8 @@ end
 
 local function on_aim_fire(e)
     anim_data.dt_charge = 0
-    aim_data[e.id] = { target = e.target, hit_chance = e.hit_chance, damage = e.damage, backtrack = globals.tickcount() - e.tick, x = e.x, y = e.y, z = e.z }
+    aim_data[e.id] = { target = e.target, hit_chance = e.hit_chance, damage = e.damage, backtrack = globals.tickcount() -
+    e.tick, x = e.x, y = e.y, z = e.z }
 end
 
 local function on_aim_hit(e)
@@ -432,7 +544,8 @@ local function on_aim_hit(e)
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
     local hp_left = entity.get_prop(e.target, "m_iHealth")
-    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup, e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
+    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup,
+        e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 255, 105, 180 })
@@ -444,7 +557,8 @@ local function on_aim_miss(e)
     if not data then return end
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
-    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason, math.floor(data.hit_chance), data.backtrack)
+    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason,
+        math.floor(data.hit_chance), data.backtrack)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 200, 60, 60 })
@@ -454,9 +568,11 @@ end
 -- ==========================================
 -- [ TRASH TALK ]
 -- ==========================================
-local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡", "voce foi ownado", "voce foi dissolvido" }
+local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡",
+    "voce foi ownado", "voce foi dissolvido" }
 local molly_msgs = { "Churrasco de random kkk", "Assado vivo", "Fogo na inveja", "Virou cinza kkk", "Dançando no fogo" }
-local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda", "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
+local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda",
+    "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
 
 local current_idx, molly_idx, death_idx = 1, 1, 1
 local revenge_target_userid = nil
@@ -569,12 +685,24 @@ end)
 -- [ BUYBOT ]
 -- ==========================================
 local buy_cmds = {
-    ["Auto"] = "scar20", ["Scout"] = "ssg08", ["Awp"] = "awp", ["Primary rifle"] = "ak47",
-    ["Scoped rifle"] = "sg556", ["Machine gun"] = "negev", ["Default pistol"] = "glock",
-    ["P250"] = "p250", ["Dual Berettas"] = "elite", ["Light pistol"] = "tec9",
-    ["Heavy pistol"] = "deagle", ["Grenade"] = "hegrenade", ["Smoke"] = "smokegrenade",
-    ["Incendiary"] = "molotov", ["Flashbang"] = "flashbang", ["Kevlar + Helmet"] = "vesthelm",
-    ["Defuse kit"] = "defuser", ["Zeus"] = "taser"
+    ["Auto"] = "scar20",
+    ["Scout"] = "ssg08",
+    ["Awp"] = "awp",
+    ["Primary rifle"] = "ak47",
+    ["Scoped rifle"] = "sg556",
+    ["Machine gun"] = "negev",
+    ["Default pistol"] = "glock",
+    ["P250"] = "p250",
+    ["Dual Berettas"] = "elite",
+    ["Light pistol"] = "tec9",
+    ["Heavy pistol"] = "deagle",
+    ["Grenade"] = "hegrenade",
+    ["Smoke"] = "smokegrenade",
+    ["Incendiary"] = "molotov",
+    ["Flashbang"] = "flashbang",
+    ["Kevlar + Helmet"] = "vesthelm",
+    ["Defuse kit"] = "defuser",
+    ["Zeus"] = "taser"
 }
 
 local function on_round_prestart()
@@ -605,6 +733,7 @@ client.set_event_callback("weapon_fire", function(e)
     if client.userid_to_entindex(e.userid) == me then anim_data.dt_charge = 0 end
 end)
 
+client.set_event_callback("setup_command", on_setup_command)
 client.set_event_callback("player_death", on_killsay_player_death)
 client.set_event_callback("round_prestart", on_round_prestart)
 client.set_event_callback("aim_fire", on_aim_fire)
