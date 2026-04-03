@@ -5,6 +5,7 @@
 ]]
 
 local TAB, CONTAINER = "LUA", "B"
+local ffi = require("ffi")
 
 local function get_refs(...) return { ui.reference(...) } end
 
@@ -17,6 +18,26 @@ local ref_fs = get_refs("AA", "Anti-aimbot angles", "Freestanding")
 local ref_dmg = get_refs("RAGE", "Aimbot", "Minimum damage")
 local ref_ovr = get_refs("RAGE", "Aimbot", "Minimum damage override")
 local ref_qpeek = get_refs("Rage", "Other", "Quick peek assist")
+
+-- ==========================================
+-- [ FFI - SPARKLES SETUP ]
+-- ==========================================
+ffi.cdef [[
+    struct spark_vec3_t { float x, y, z; };
+    typedef void(__fastcall*FX_ElectricSparkFn)(const struct spark_vec3_t*, int, int, const struct spark_vec3_t*);
+]]
+local FX_ElectricSpark = ffi.cast("FX_ElectricSparkFn",
+    client.find_signature("client.dll",
+        "\x55\x8B\xEC\x83\xEC\x3C\x53\x8B\xD9\x89\x55\xFC\x8B\x0D\xCC\xCC\xCC\xCC\x56\x57"))
+local spark_material = nil
+pcall(function()
+    if materialsystem then
+        spark_material = materialsystem.find_material("effects/spark", true)
+    elseif materials then
+        spark_material = materials.find("effects/spark")
+    end
+end)
+
 
 -- ==========================================
 -- [ MENU UI ]
@@ -36,14 +57,22 @@ local hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
 local hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
 local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
 
--- Logs na Tela & Hitmarker
+-- Logs na Tela, Hitmarker & Sparkles
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
 local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
 local logs_pos_ui = ui.new_combobox(TAB, CONTAINER, "Screen Logs Position", { "Left (Default)", "Neverlose", "Center" })
+
 local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
-local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)" })
+local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)", "Damage Number" })
+
 local slowdown_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Slowdown Warning")
 local slowdown_color = ui.new_color_picker(TAB, CONTAINER, "Slowdown Accent Color", 255, 105, 180, 255)
+
+local sparkles_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Death Sparkles")
+local sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255, 255, 255, 255)
+local sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
+local sparkles_length = ui.new_slider(TAB, CONTAINER, "Sparkle Length", 1, 10, 2)
+
 
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
@@ -159,6 +188,11 @@ local function handle_menu()
     local lg_state = ui.get(logs_enabled)
     ui.set_visible(logs_pos_ui, lg_state)
 
+    local sp_state = ui.get(sparkles_enabled)
+    ui.set_visible(sparkles_color, sp_state)
+    ui.set_visible(sparkles_radius, sp_state)
+    ui.set_visible(sparkles_length, sp_state)
+
     -- Trash Talk
     local k_state = ui.get(killsay_enabled)
     ui.set_visible(killsay_name, k_state)
@@ -195,6 +229,7 @@ ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
 ui.set_callback(slowdown_enabled, handle_menu)
 ui.set_callback(logs_enabled, handle_menu)
+ui.set_callback(sparkles_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 ui.set_callback(drop_nades_enabled, handle_menu)
@@ -294,6 +329,9 @@ for i = 1, #sync_refs do
         end)
     end
 end
+
+client.set_event_callback("pre_config_load", function() syncing = false end)
+client.set_event_callback("post_config_load", function() syncing = true end)
 
 
 -- ==========================================
@@ -653,6 +691,7 @@ local function draw_3d_hitmarkers()
     if not ui.get(hitmarker_enabled) or #hit_markers == 0 then return end
 
     local style = ui.get(hitmarker_style)
+    local is_dmg = style == "Damage Number"
     local symbol = style == "Icon (❤)" and "❤" or "<3"
     local flag = style == "Icon (❤)" and "c" or "cb"
 
@@ -669,8 +708,15 @@ local function draw_3d_hitmarkers()
                 sy = sy - (time_alive * 30)
                 local alpha = 255
                 if time_alive > 1.0 then alpha = math.max(0, math.floor(255 * (1.5 - time_alive) / 0.5)) end
-                renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, flag, 0, symbol)
-                renderer.text(sx, sy, 255, 105, 180, alpha, flag, 0, symbol)
+
+                if is_dmg then
+                    local dmg_str = tostring(marker.damage or 0)
+                    renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, "c", 0, dmg_str)
+                    renderer.text(sx, sy, 255, 105, 180, alpha, "c", 0, dmg_str)
+                else
+                    renderer.text(sx + 1, sy + 1, 10, 10, 10, alpha, flag, 0, symbol)
+                    renderer.text(sx, sy, 255, 105, 180, alpha, flag, 0, symbol)
+                end
             end
         end
     end
@@ -682,8 +728,7 @@ local function on_aim_fire(e)
         target = e.target,
         hit_chance = e.hit_chance,
         damage = e.damage,
-        backtrack = globals.tickcount() -
-            e.tick,
+        backtrack = globals.tickcount() - e.tick,
         x = e.x,
         y = e.y,
         z = e.z
@@ -695,7 +740,7 @@ local function on_aim_hit(e)
     if not data then return end
 
     if ui.get(hitmarker_enabled) and data.x and data.y and data.z then
-        table.insert(hit_markers, { x = data.x, y = data.y, z = data.z, time = globals.realtime() })
+        table.insert(hit_markers, { x = data.x, y = data.y, z = data.z, time = globals.realtime(), damage = e.damage })
     end
 
     if not ui.get(logs_enabled) then return end
@@ -720,6 +765,41 @@ local function on_aim_miss(e)
 
     print("[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 200, 60, 60 })
+end
+
+-- ==========================================
+-- [ DEATH SPARKLES ]
+-- ==========================================
+local function on_player_death_sparkles(e)
+    if not ui.get(sparkles_enabled) then return end
+    local lp = entity.get_local_player()
+    if not lp then return end
+    local victim = client.userid_to_entindex(e.userid)
+    local attacker = client.userid_to_entindex(e.attacker)
+    if not victim then return end
+
+    if attacker == lp and victim ~= lp then
+        local radius = ui.get(sparkles_radius)
+        local length = ui.get(sparkles_length)
+        local r, g, b, a = ui.get(sparkles_color)
+
+        if spark_material then
+            pcall(function()
+                if spark_material.alpha_modulate then
+                    spark_material:alpha_modulate(a)
+                    spark_material:color_modulate(r, g, b)
+                end
+            end)
+        end
+
+        local vx, vy, vz = entity.get_prop(victim, "m_vecOrigin")
+        if vx and vy and vz then
+            -- Altura do peito/cabeça
+            local pos = ffi.new("struct spark_vec3_t", { vx, vy, vz + 40 })
+            local dir = ffi.new("struct spark_vec3_t", { 0, 0, 0 })
+            FX_ElectricSpark(pos, radius, length, dir)
+        end
+    end
 end
 
 
@@ -959,67 +1039,12 @@ client.set_event_callback("weapon_fire", function(e)
 end)
 
 client.set_event_callback("setup_command", on_setup_command)
-client.set_event_callback("player_death", on_killsay_player_death)
+client.set_event_callback("player_death", function(e)
+    on_killsay_player_death(e)
+    on_player_death_sparkles(e)
+end)
 client.set_event_callback("round_prestart", on_round_prestart)
 client.set_event_callback("aim_fire", on_aim_fire)
 client.set_event_callback("aim_hit", on_aim_hit)
 client.set_event_callback("aim_miss", on_aim_miss)
 client.set_event_callback("shutdown", reset_clantag)
-
--- ==========================================
--- [ RAGEBOT HOTKEY SYNC ]
--- ==========================================
-local syncing = true
-
-local hotkey_type_names = {
-    [0] = "Always on",
-    "On hotkey",
-    "Toggle",
-    "Off hotkey"
-}
-
-local weapon_names = {
-    "Global", "G3SG1 / SCAR-20", "SSG 08", "AWP", "R8 Revolver",
-    "Desert Eagle", "Pistol", "Zeus", "Rifle", "Shotgun", "SMG", "Machine gun"
-}
-
-local weapon_type_ref = ui.reference("RAGE", "Weapon type", "Weapon type")
-
-local function sync_hotkey_to_all(ref)
-    if not syncing or not ui.get(sync_hotkeys_enabled) then return end
-
-    local _, htype_num, bind = ui.get(ref)
-    local htype_str = hotkey_type_names[htype_num] or "Always on"
-    bind = bind or 0
-
-    local current_weapon = ui.get(weapon_type_ref)
-
-    for i = 1, #weapon_names do
-        ui.set(weapon_type_ref, weapon_names[i])
-        ui.set(ref, htype_str, bind)
-    end
-
-    ui.set(weapon_type_ref, current_weapon)
-end
-
-local sync_refs = {
-    select(2, ui.reference("RAGE", "Aimbot", "Enabled")),
-    select(2, ui.reference("RAGE", "Aimbot", "Multi-point")),
-    select(2, ui.reference("RAGE", "Aimbot", "Minimum damage override")),
-    select(1, ui.reference("RAGE", "Aimbot", "Force safe point")),
-    select(1, ui.reference("RAGE", "Aimbot", "Force body aim")),
-    select(2, ui.reference("RAGE", "Aimbot", "Quick stop")),
-    select(2, ui.reference("RAGE", "Aimbot", "Double tap")),
-}
-
-for i = 1, #sync_refs do
-    local ref = sync_refs[i]
-    if ui.type(ref) == "hotkey" then
-        ui.set_callback(ref, function()
-            sync_hotkey_to_all(ref)
-        end)
-    end
-end
-
-client.set_event_callback("pre_config_load", function() syncing = false end)
-client.set_event_callback("post_config_load", function() syncing = true end)
