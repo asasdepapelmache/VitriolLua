@@ -57,8 +57,11 @@ local hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
 local hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
 local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
 
--- Logs na Tela, Hitmarker & Sparkles
+-- Logs na Tela, Hitmarker, Sparkles & Watermark
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
+local watermark_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Watermark")
+local watermark_color = ui.new_color_picker(TAB, CONTAINER, "Watermark Accent", 255, 105, 180, 255)
+
 local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
 local logs_pos_ui = ui.new_combobox(TAB, CONTAINER, "Screen Logs Position", { "Left (Default)", "Neverlose", "Center" })
 
@@ -72,7 +75,6 @@ local sparkles_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Death Sparkles"
 local sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255, 255, 255, 255)
 local sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
 local sparkles_length = ui.new_slider(TAB, CONTAINER, "Sparkle Length", 1, 10, 2)
-
 
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
@@ -180,6 +182,9 @@ local function handle_menu()
     ui.set_visible(hud_color, h_state)
 
     -- Visuals
+    local wm_state = ui.get(watermark_enabled)
+    ui.set_visible(watermark_color, wm_state)
+
     local hm_state = ui.get(hitmarker_enabled)
     ui.set_visible(hitmarker_style, hm_state)
     local sd_state = ui.get(slowdown_enabled)
@@ -226,6 +231,7 @@ end)
 -- Callbacks Normais
 ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
+ui.set_callback(watermark_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
 ui.set_callback(slowdown_enabled, handle_menu)
 ui.set_callback(logs_enabled, handle_menu)
@@ -403,6 +409,75 @@ local function handle_nade_dropper(cmd)
         cmd.no_choke = true
         cmd.allow_send_packet = true
     end
+end
+
+
+-- ==========================================
+-- [ WATERMARK MATEMATICAMENTE BLINDADA ]
+-- ==========================================
+local function draw_watermark()
+    if not ui.get(watermark_enabled) then return end
+
+    local sw, sh = client.screen_size()
+    local r, g, b, a = ui.get(watermark_color)
+
+    local fps = math.floor(1 / globals.absoluteframetime())
+    local ping = math.floor(client.latency() * 1000)
+    local h, m, s = client.system_time()
+    local time_str = string.format("%02d:%02d:%02d", h, m, s)
+
+    local me = entity.get_local_player()
+    local user = "unknown"
+    if me then
+        user = entity.get_player_name(me) or "unknown"
+        if string.len(user) > 15 then
+            user = string.sub(user, 1, 12) .. "..."
+        end
+    end
+
+    local str_base = string.format("♡ Vitriol.lua | %s | ", user)
+    local str_fps_suf = "fps | "
+    local str_ping_suf = "ms | "
+
+    local w_base = renderer.measure_text("", str_base)
+    local w_num = renderer.measure_text("", "999")
+    local w_fps_suf = renderer.measure_text("", str_fps_suf)
+    local w_ping_suf = renderer.measure_text("", str_ping_suf)
+    local w_time = renderer.measure_text("", "00:00:00")
+
+    local padding = 8
+    local w = w_base + (w_num * 2) + w_fps_suf + w_ping_suf + w_time + (padding * 2)
+    local h_box = 20
+    local x = sw - w - 15
+    local y = 15
+
+    renderer.rectangle(x, y, w, h_box, 15, 15, 15, 200)
+    renderer.rectangle(x, y, w, 2, r, g, b, a)
+
+    local cx = x + padding
+
+    --Nome
+    renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_base)
+    cx = cx + w_base
+
+    --FPS
+    renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(fps))
+    cx = cx + w_num
+
+    --Sufixo do FPS
+    renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_fps_suf)
+    cx = cx + w_fps_suf
+
+    --Ping
+    renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(ping))
+    cx = cx + w_num
+
+    --Sufixo do Ping
+    renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_ping_suf)
+    cx = cx + w_ping_suf
+
+    --Tempo
+    renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, time_str)
 end
 
 
@@ -794,7 +869,6 @@ local function on_player_death_sparkles(e)
 
         local vx, vy, vz = entity.get_prop(victim, "m_vecOrigin")
         if vx and vy and vz then
-            -- Altura do peito/cabeça
             local pos = ffi.new("struct spark_vec3_t", { vx, vy, vz + 40 })
             local dir = ffi.new("struct spark_vec3_t", { 0, 0, 0 })
             FX_ElectricSpark(pos, radius, length, dir)
@@ -1017,6 +1091,7 @@ client.set_event_callback("paint", function()
     draw_slowdown_warning()
     draw_screen_logs()
     draw_3d_hitmarkers()
+    draw_watermark()
 end)
 
 client.set_event_callback("weapon_fire", function(e)
