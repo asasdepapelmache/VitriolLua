@@ -76,6 +76,15 @@ local sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255,
 local sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
 local sparkles_length = ui.new_slider(TAB, CONTAINER, "Sparkle Length", 1, 10, 2)
 
+-- Camera & Viewmodel
+ui.new_label(TAB, CONTAINER, "--- Camera & Viewmodel ---")
+local camera_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Camera Mods")
+local aspect_ratio_slider = ui.new_slider(TAB, CONTAINER, "Aspect Ratio (0 = Default)", 0, 200, 0, true, "%", 0.01)
+local viewmodel_fov = ui.new_slider(TAB, CONTAINER, "Viewmodel FOV", 40, 120, 68)
+local viewmodel_x = ui.new_slider(TAB, CONTAINER, "Viewmodel X", -20, 20, 2)
+local viewmodel_y = ui.new_slider(TAB, CONTAINER, "Viewmodel Y", -20, 20, 0)
+local viewmodel_z = ui.new_slider(TAB, CONTAINER, "Viewmodel Z", -20, 20, -1)
+
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
 local killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Trash Talk")
@@ -108,6 +117,45 @@ local knife_retreat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Knife Retr
 local sync_hotkeys_enabled = ui.new_checkbox(TAB, CONTAINER, "Sync Ragebot Hotkeys")
 
 ui.new_label(TAB, CONTAINER, "=========================")
+
+
+-- ==========================================
+-- [ CAMERA & VIEWMODEL LOGIC ]
+-- ==========================================
+local orig_cvars = {
+    ar = cvar.r_aspectratio:get_float() or 0,
+    fov = cvar.viewmodel_fov:get_float() or 68,
+    x = cvar.viewmodel_offset_x:get_float() or 2.5,
+    y = cvar.viewmodel_offset_y:get_float() or 0,
+    z = cvar.viewmodel_offset_z:get_float() or -1.5,
+    preset = cvar.viewmodel_presetpos:get_int() or 1
+}
+
+local camera_was_on = false
+
+local function handle_camera_mods()
+    if ui.get(camera_enabled) then
+        local ar = ui.get(aspect_ratio_slider)
+
+        cvar.r_aspectratio:set_raw_float(ar == 0 and 0 or (ar / 100))
+
+        cvar.viewmodel_presetpos:set_raw_int(0)
+        cvar.viewmodel_fov:set_raw_float(ui.get(viewmodel_fov))
+        cvar.viewmodel_offset_x:set_raw_float(ui.get(viewmodel_x))
+        cvar.viewmodel_offset_y:set_raw_float(ui.get(viewmodel_y))
+        cvar.viewmodel_offset_z:set_raw_float(ui.get(viewmodel_z))
+
+        camera_was_on = true
+    elseif camera_was_on then
+        cvar.r_aspectratio:set_raw_float(orig_cvars.ar)
+        cvar.viewmodel_presetpos:set_raw_int(orig_cvars.preset)
+        cvar.viewmodel_fov:set_raw_float(orig_cvars.fov)
+        cvar.viewmodel_offset_x:set_raw_float(orig_cvars.x)
+        cvar.viewmodel_offset_y:set_raw_float(orig_cvars.y)
+        cvar.viewmodel_offset_z:set_raw_float(orig_cvars.z)
+        camera_was_on = false
+    end
+end
 
 
 -- ==========================================
@@ -198,6 +246,14 @@ local function handle_menu()
     ui.set_visible(sparkles_radius, sp_state)
     ui.set_visible(sparkles_length, sp_state)
 
+    -- Camera Mods
+    local cam_state = ui.get(camera_enabled)
+    ui.set_visible(aspect_ratio_slider, cam_state)
+    ui.set_visible(viewmodel_fov, cam_state)
+    ui.set_visible(viewmodel_x, cam_state)
+    ui.set_visible(viewmodel_y, cam_state)
+    ui.set_visible(viewmodel_z, cam_state)
+
     -- Trash Talk
     local k_state = ui.get(killsay_enabled)
     ui.set_visible(killsay_name, k_state)
@@ -227,6 +283,8 @@ ui.set_callback(clantag_enabled, function()
         reset_clantag()
     end
 end)
+
+ui.set_callback(camera_enabled, handle_menu)
 
 -- Callbacks Normais
 ui.set_callback(clantag_type, handle_menu)
@@ -413,7 +471,7 @@ end
 
 
 -- ==========================================
--- [ WATERMARK MATEMATICAMENTE BLINDADA ]
+--            [ WATERMARK ]
 -- ==========================================
 local function draw_watermark()
     if not ui.get(watermark_enabled) then return end
@@ -435,7 +493,7 @@ local function draw_watermark()
         end
     end
 
-    local str_base = string.format("♡ Vitriol.lua | %s | ", user)
+    local str_base = string.format("♡ vitriol.lua | %s | ", user)
     local str_fps_suf = "fps | "
     local str_ping_suf = "ms | "
 
@@ -456,27 +514,27 @@ local function draw_watermark()
 
     local cx = x + padding
 
-    --Nome
+    -- 1. Nome
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_base)
     cx = cx + w_base
 
-    --FPS
+    -- 2. FPS (Alinhado à DIREITA "r" dentro do espaço de 3 dígitos)
     renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(fps))
     cx = cx + w_num
 
-    --Sufixo do FPS
+    -- 3. Sufixo do FPS
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_fps_suf)
     cx = cx + w_fps_suf
 
-    --Ping
+    -- 4. Ping (Alinhado à DIREITA "r")
     renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(ping))
     cx = cx + w_num
 
-    --Sufixo do Ping
+    -- 5. Sufixo do Ping
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_ping_suf)
     cx = cx + w_ping_suf
 
-    --Tempo
+    -- 6. Tempo
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, time_str)
 end
 
@@ -1092,6 +1150,7 @@ client.set_event_callback("paint", function()
     draw_screen_logs()
     draw_3d_hitmarkers()
     draw_watermark()
+    handle_camera_mods()
 end)
 
 client.set_event_callback("weapon_fire", function(e)
@@ -1122,4 +1181,13 @@ client.set_event_callback("round_prestart", on_round_prestart)
 client.set_event_callback("aim_fire", on_aim_fire)
 client.set_event_callback("aim_hit", on_aim_hit)
 client.set_event_callback("aim_miss", on_aim_miss)
-client.set_event_callback("shutdown", reset_clantag)
+
+client.set_event_callback("shutdown", function()
+    reset_clantag()
+    cvar.r_aspectratio:set_raw_float(orig_cvars.ar)
+    cvar.viewmodel_presetpos:set_raw_int(orig_cvars.preset)
+    cvar.viewmodel_fov:set_raw_float(orig_cvars.fov)
+    cvar.viewmodel_offset_x:set_raw_float(orig_cvars.x)
+    cvar.viewmodel_offset_y:set_raw_float(orig_cvars.y)
+    cvar.viewmodel_offset_z:set_raw_float(orig_cvars.z)
+end)
