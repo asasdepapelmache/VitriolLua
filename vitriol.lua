@@ -71,6 +71,9 @@ local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Te
 local slowdown_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Slowdown Warning")
 local slowdown_color = ui.new_color_picker(TAB, CONTAINER, "Slowdown Accent Color", 255, 105, 180, 255)
 
+local stamina_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Stamina Meter")
+local stamina_color = ui.new_color_picker(TAB, CONTAINER, "Stamina Accent Color", 255, 105, 180, 255)
+
 local sparkles_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Death Sparkles")
 local sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255, 255, 255, 255)
 local sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
@@ -106,6 +109,11 @@ local buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility",
 
 -- Misc
 ui.new_label(TAB, CONTAINER, "--- Misc ---")
+local crouch_jump_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Train Jump Assist")
+local crouch_jump_hotkey = ui.new_hotkey(TAB, CONTAINER, "Train Jump Hotkey", true)
+local crouch_jump_delay = ui.new_slider(TAB, CONTAINER, "Delay before jump", 0, 1000, 20, true, "ms")
+local crouch_release_delay = ui.new_slider(TAB, CONTAINER, "Delay before duck release", 0, 1000, 450, true, "ms")
+
 local drop_nades_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Nade Dropper")
 local drop_nades_hotkey = ui.new_hotkey(TAB, CONTAINER, "Nade Dropper Hotkey", true)
 local drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop",
@@ -235,8 +243,12 @@ local function handle_menu()
 
     local hm_state = ui.get(hitmarker_enabled)
     ui.set_visible(hitmarker_style, hm_state)
+
     local sd_state = ui.get(slowdown_enabled)
     ui.set_visible(slowdown_color, sd_state)
+
+    local st_state = ui.get(stamina_enabled)
+    ui.set_visible(stamina_color, st_state)
 
     local lg_state = ui.get(logs_enabled)
     ui.set_visible(logs_pos_ui, lg_state)
@@ -269,6 +281,11 @@ local function handle_menu()
     ui.set_visible(buybot_utility, b_state)
 
     -- Misc
+    local cj_state = ui.get(crouch_jump_enabled)
+    ui.set_visible(crouch_jump_hotkey, cj_state)
+    ui.set_visible(crouch_jump_delay, cj_state)
+    ui.set_visible(crouch_release_delay, cj_state)
+
     local m_state = ui.get(drop_nades_enabled)
     ui.set_visible(drop_nades_hotkey, m_state)
     ui.set_visible(drop_nades_select, m_state)
@@ -285,17 +302,17 @@ ui.set_callback(clantag_enabled, function()
 end)
 
 ui.set_callback(camera_enabled, handle_menu)
-
--- Callbacks Normais
 ui.set_callback(clantag_type, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(watermark_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
 ui.set_callback(slowdown_enabled, handle_menu)
+ui.set_callback(stamina_enabled, handle_menu)
 ui.set_callback(logs_enabled, handle_menu)
 ui.set_callback(sparkles_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
+ui.set_callback(crouch_jump_enabled, handle_menu)
 ui.set_callback(drop_nades_enabled, handle_menu)
 ui.set_callback(quick_switch_enabled, handle_menu)
 
@@ -514,28 +531,66 @@ local function draw_watermark()
 
     local cx = x + padding
 
-    -- 1. Nome
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_base)
     cx = cx + w_base
 
-    -- 2. FPS (Alinhado à DIREITA "r" dentro do espaço de 3 dígitos)
     renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(fps))
     cx = cx + w_num
 
-    -- 3. Sufixo do FPS
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_fps_suf)
     cx = cx + w_fps_suf
 
-    -- 4. Ping (Alinhado à DIREITA "r")
     renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(ping))
     cx = cx + w_num
 
-    -- 5. Sufixo do Ping
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_ping_suf)
     cx = cx + w_ping_suf
 
-    -- 6. Tempo
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, time_str)
+end
+
+
+-- ==========================================
+-- [ STAMINA METER ]
+-- ==========================================
+local function draw_stamina_meter()
+    if not ui.get(stamina_enabled) then return end
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+
+    local stamina = entity.get_prop(me, "m_flStamina") or 0
+    if stamina <= 0.5 then return end
+
+    local sw, sh = client.screen_size()
+    local cx = sw / 2
+    local cy = sh / 2
+
+    local bar_width = 174
+    local bar_height = 8
+    local bar_x = cx - (bar_width / 2)
+    local bar_y = cy - (cy / 1.5) + 25
+
+    local max_stamina = 80
+    local fraction = math.min(1, stamina / max_stamina)
+    local fill_width = math.floor(bar_width * fraction)
+
+    local r, g, b, a = ui.get(stamina_color)
+    local bg_a = math.floor(a * 0.8)
+
+    renderer.rectangle(bar_x, bar_y, bar_width, bar_height, 25, 25, 25, bg_a)
+
+    if fill_width > 0 then
+        renderer.rectangle(bar_x, bar_y, fill_width, bar_height, r, g, b, a)
+
+        for i = 1, 3 do
+            local glow_a = math.floor(a / (i * 2.5))
+            renderer.rectangle(bar_x - i, bar_y - i, fill_width + (i * 2), bar_height + (i * 2), r, g, b, glow_a)
+        end
+    end
+
+    local text = string.format("Stamina Penalty: %.0f", stamina)
+    renderer.text(cx + 1, bar_y - 12 + 1, 10, 10, 10, math.floor(a * 0.8), "c", 0, text)
+    renderer.text(cx, bar_y - 12, 255, 255, 255, a, "c", 0, text)
 end
 
 
@@ -546,7 +601,6 @@ local anim_data = { dt = 0, dt_charge = 1.0, hs = 0, fs = 0, fd = 0, baim = 0, s
 local dmg_anim = { val = 0, r = 220, g = 180, b = 255 }
 local bit_band = bit.band
 local math_sqrt = math.sqrt
-local slowdown_anim_alpha = 0
 
 local function draw_slowdown_warning()
     if not ui.get(slowdown_enabled) then return end
@@ -772,7 +826,6 @@ local function draw_screen_logs()
     local current_time = globals.realtime()
 
     local base_x, base_y = 10, sh / 2 + 100
-    local align_right = false
     local center_x = false
     local stack_dir = -1
 
@@ -883,7 +936,8 @@ local function on_aim_hit(e)
     local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup,
         e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
 
-    print("[Vitriol.lua] " .. log_text)
+    client.color_log(255, 105, 180, "\n[Vitriol.lua] " .. log_text)
+
     add_screen_log(log_text, { 255, 105, 180 })
 end
 
@@ -896,7 +950,7 @@ local function on_aim_miss(e)
     local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason,
         math.floor(data.hit_chance), data.backtrack)
 
-    print("[Vitriol.lua] " .. log_text)
+    client.color_log(255, 105, 180, "\n[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 200, 60, 60 })
 end
 
@@ -1118,10 +1172,46 @@ local function handle_quick_switch(weapon_name)
 end
 
 -- ==========================================
+-- [ TRAIN CROUCH JUMP VARS ]
+-- ==========================================
+local cjump_start_time = nil
+local cjump_was_active = false
+local cjump_jumped = false
+
+-- ==========================================
 -- [ REGISTRO DE EVENTOS E SHUTDOWN ]
 -- ==========================================
 local function on_setup_command(cmd)
     handle_nade_dropper(cmd)
+
+    -- Lógica do Crouch Jump Assist da Train (Adaptada)
+    if ui.get(crouch_jump_enabled) and globals.mapname() == "de_train" then
+        local active = ui.get(crouch_jump_hotkey)
+        local on_press = active and not cjump_was_active
+
+        if on_press then
+            cjump_start_time = globals.realtime()
+            cjump_jumped = false
+        end
+
+        cjump_was_active = active
+
+        if cjump_start_time ~= nil then
+            local elapsed = (globals.realtime() - cjump_start_time) * 1000
+
+            cmd.in_duck = 1
+
+            if elapsed >= ui.get(crouch_jump_delay) and not cjump_jumped then
+                cmd.in_jump = 1
+                cjump_jumped = true
+            end
+
+            if elapsed >= ui.get(crouch_release_delay) then
+                cmd.in_duck = 0
+                cjump_start_time = nil
+            end
+        end
+    end
 
     if retreat_data.is_retreating then
         local me = entity.get_local_player()
@@ -1147,6 +1237,7 @@ client.set_event_callback("paint", function()
     update_clantag()
     draw_crosshair_hud()
     draw_slowdown_warning()
+    draw_stamina_meter()
     draw_screen_logs()
     draw_3d_hitmarkers()
     draw_watermark()
