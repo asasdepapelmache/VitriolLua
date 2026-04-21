@@ -47,7 +47,8 @@ ui.new_label(TAB, CONTAINER, "====== [ Vitriol.lua ] ======")
 -- Clantag
 ui.new_label(TAB, CONTAINER, "--- Clantag ---")
 local clantag_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol.lua Clantag")
-local clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static" })
+local clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static", "Clock" })
+local clantag_timezone = ui.new_combobox(TAB, CONTAINER, "Clock Timezone", { "Brasília", "Amazonas" })
 local clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
 local clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
 
@@ -195,22 +196,40 @@ end)
 local function update_clantag()
     if not ui.get(clantag_enabled) then return end
 
-    if ui.get(clantag_type) == "Static" then
+    local c_type = ui.get(clantag_type)
+
+    if c_type == "Clock" then
+        local unix = client.unix_time()
+        local offset = ui.get(clantag_timezone) == "Brasília" and -3 or -4
+        local total_seconds = unix + (offset * 3600)
+        
+        local h = math.floor(total_seconds % 86400 / 3600)
+        local m = math.floor(total_seconds % 3600 / 60)
+        local s = total_seconds % 60
+        
+        local time_tag = string.format("%02d:%02d:%02d", h, m, s)
+        set_tag(time_tag)
+        return
+    end
+
+    if c_type == "Static" then
         set_tag(static_tag)
         return
     end
 
-    local current_time = globals.realtime()
-    local speed = ui.get(clantag_speed) * 0.1
+    if c_type == "Animated" then
+        local current_time = globals.realtime()
+        local speed = ui.get(clantag_speed) * 0.1
 
-    if current_time - last_update_time >= speed then
-        set_tag(clantag_frames[current_frame])
-        current_frame = current_frame + 1
+        if current_time - last_update_time >= speed then
+            set_tag(clantag_frames[current_frame])
+            current_frame = current_frame + 1
 
-        if current_frame > #clantag_frames then
-            current_frame = 1
+            if current_frame > #clantag_frames then
+                current_frame = 1
+            end
+            last_update_time = current_time
         end
-        last_update_time = current_time
     end
 end
 
@@ -229,6 +248,7 @@ local function handle_menu()
     local c_state = ui.get(clantag_enabled)
     local c_type = ui.get(clantag_type)
     ui.set_visible(clantag_type, c_state)
+    ui.set_visible(clantag_timezone, c_state and c_type == "Clock")
     ui.set_visible(clantag_speed, c_state and c_type == "Animated")
     ui.set_visible(clantag_sync, c_state and c_type == "Animated")
 
@@ -303,6 +323,7 @@ end)
 
 ui.set_callback(camera_enabled, handle_menu)
 ui.set_callback(clantag_type, handle_menu)
+ui.set_callback(clantag_timezone, handle_menu)
 ui.set_callback(hud_enabled, handle_menu)
 ui.set_callback(watermark_enabled, handle_menu)
 ui.set_callback(hitmarker_enabled, handle_menu)
