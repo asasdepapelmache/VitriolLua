@@ -19,16 +19,22 @@ local ref_dmg = get_refs("RAGE", "Aimbot", "Minimum damage")
 local ref_ovr = get_refs("RAGE", "Aimbot", "Minimum damage override")
 local ref_qpeek = get_refs("Rage", "Other", "Quick peek assist")
 
+local ref_yaw_base = ui.reference("AA", "Anti-aimbot angles", "Yaw base")
+local ref_yaw, ref_yaw_slider = ui.reference("AA", "Anti-aimbot angles", "Yaw")
+
 -- ==========================================
--- [ FFI - SPARKLES SETUP ]
+-- [ FFI - SPARKLES & SAFE AUDIO ]
 -- ==========================================
 ffi.cdef [[
     struct spark_vec3_t { float x, y, z; };
     typedef void(__fastcall*FX_ElectricSparkFn)(const struct spark_vec3_t*, int, int, const struct spark_vec3_t*);
 ]]
-local FX_ElectricSpark = ffi.cast("FX_ElectricSparkFn",
-    client.find_signature("client.dll",
-        "\x55\x8B\xEC\x83\xEC\x3C\x53\x8B\xD9\x89\x55\xFC\x8B\x0D\xCC\xCC\xCC\xCC\x56\x57"))
+
+local FX_ElectricSpark
+pcall(function()
+    FX_ElectricSpark = ffi.cast("FX_ElectricSparkFn", client.find_signature("client.dll", "\x55\x8B\xEC\x83\xEC\x3C\x53\x8B\xD9\x89\x55\xFC\x8B\x0D\xCC\xCC\xCC\xCC\x56\x57"))
+end)
+
 local spark_material = nil
 pcall(function()
     if materialsystem then
@@ -38,6 +44,12 @@ pcall(function()
     end
 end)
 
+local native_Surface_PlaySound
+pcall(function()
+    local surface = client.create_interface("vguimatsurface.dll", "VGUI_Surface031")
+    local fnptr = ffi.cast("void(__thiscall*)(void*, const char*)", (ffi.cast("void***", surface)[0])[82])
+    native_Surface_PlaySound = function(path) return fnptr(surface, path) end
+end)
 
 -- ==========================================
 -- [ MENU UI ]
@@ -57,6 +69,18 @@ ui.new_label(TAB, CONTAINER, "--- Indicators ---")
 local hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
 local hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
 local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
+
+-- New ESP / Indicators
+ui.new_label(TAB, CONTAINER, "--- Extra ESP ---")
+local manual_aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Manual AA Arrows")
+local manual_aa_color = ui.new_color_picker(TAB, CONTAINER, "Manual AA Color", 255, 105, 180, 255)
+local hotkey_left = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Left")
+local hotkey_back = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Back")
+local hotkey_right = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Right")
+
+local taser_warning_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Taser Warning ESP")
+local range_rings_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Zeus & Knife Range Rings")
+local range_color = ui.new_color_picker(TAB, CONTAINER, "Range Ring Color", 255, 105, 180, 255)
 
 -- Logs na Tela, Hitmarker, Sparkles & Watermark
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
@@ -88,6 +112,14 @@ local viewmodel_fov = ui.new_slider(TAB, CONTAINER, "Viewmodel FOV", 40, 120, 68
 local viewmodel_x = ui.new_slider(TAB, CONTAINER, "Viewmodel X", -20, 20, 2)
 local viewmodel_y = ui.new_slider(TAB, CONTAINER, "Viewmodel Y", -20, 20, 0)
 local viewmodel_z = ui.new_slider(TAB, CONTAINER, "Viewmodel Z", -20, 20, -1)
+
+-- Custom Sounds
+ui.new_label(TAB, CONTAINER, "--- Custom Sounds ---")
+local hitsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Hitsound")
+local hitsound_file = ui.new_textbox(TAB, CONTAINER, "Hitsound File (in csgo/sound/)")
+local killsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Killsound")
+local killsound_file = ui.new_textbox(TAB, CONTAINER, "Killsound File (in csgo/sound/)")
+local sound_volume = ui.new_slider(TAB, CONTAINER, "Sound Volume Multiplier", 1, 5, 1, true, "x")
 
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
@@ -257,6 +289,15 @@ local function handle_menu()
     ui.set_visible(hud_style, h_state)
     ui.set_visible(hud_color, h_state)
 
+    -- Extra ESP
+    local maa_state = ui.get(manual_aa_enabled)
+    ui.set_visible(manual_aa_color, maa_state)
+    ui.set_visible(hotkey_left, maa_state)
+    ui.set_visible(hotkey_back, maa_state)
+    ui.set_visible(hotkey_right, maa_state)
+
+    ui.set_visible(range_color, ui.get(range_rings_enabled))
+
     -- Visuals
     local wm_state = ui.get(watermark_enabled)
     ui.set_visible(watermark_color, wm_state)
@@ -285,6 +326,13 @@ local function handle_menu()
     ui.set_visible(viewmodel_x, cam_state)
     ui.set_visible(viewmodel_y, cam_state)
     ui.set_visible(viewmodel_z, cam_state)
+
+    -- Custom Sounds
+    local hs_state = ui.get(hitsound_enabled)
+    ui.set_visible(hitsound_file, hs_state)
+    local ks_state = ui.get(killsound_enabled)
+    ui.set_visible(killsound_file, ks_state)
+    ui.set_visible(sound_volume, hs_state or ks_state)
 
     -- Trash Talk
     local k_state = ui.get(killsay_enabled)
@@ -331,6 +379,10 @@ ui.set_callback(slowdown_enabled, handle_menu)
 ui.set_callback(stamina_enabled, handle_menu)
 ui.set_callback(logs_enabled, handle_menu)
 ui.set_callback(sparkles_enabled, handle_menu)
+ui.set_callback(manual_aa_enabled, handle_menu)
+ui.set_callback(range_rings_enabled, handle_menu)
+ui.set_callback(hitsound_enabled, handle_menu)
+ui.set_callback(killsound_enabled, handle_menu)
 ui.set_callback(killsay_enabled, handle_menu)
 ui.set_callback(buybot_enabled, handle_menu)
 ui.set_callback(crouch_jump_enabled, handle_menu)
@@ -375,6 +427,163 @@ local function table_contains(tbl, val)
         if tbl[i] == val then return true end
     end
     return false
+end
+
+-- ==========================================
+-- [ MANUAL AA ARROWS & LOGIC ]
+-- ==========================================
+local manual_state = 0 -- 0 = Back, 1 = Left, 2 = Right
+local last_press_l, last_press_r, last_press_b = 0, 0, 0
+
+local function handle_manual_aa()
+    if not ui.get(manual_aa_enabled) then return end
+    
+    local left = ui.get(hotkey_left)
+    local right = ui.get(hotkey_right)
+    local back = ui.get(hotkey_back)
+
+    if left and globals.realtime() > last_press_l + 0.2 then
+        manual_state = manual_state == 1 and 0 or 1
+        last_press_l = globals.realtime()
+    elseif right and globals.realtime() > last_press_r + 0.2 then
+        manual_state = manual_state == 2 and 0 or 2
+        last_press_r = globals.realtime()
+    elseif back and globals.realtime() > last_press_b + 0.2 then
+        manual_state = 0
+        last_press_b = globals.realtime()
+    end
+
+    ui.set(ref_yaw_base, "Local view")
+    if manual_state == 0 then ui.set(ref_yaw_slider, 0)
+    elseif manual_state == 1 then ui.set(ref_yaw_slider, -90)
+    elseif manual_state == 2 then ui.set(ref_yaw_slider, 90) end
+end
+
+local function draw_manual_aa()
+    if not ui.get(manual_aa_enabled) then return end
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+
+    local sw, sh = client.screen_size()
+    local cx, cy = sw / 2, sh / 2
+    local r, g, b, a = ui.get(manual_aa_color)
+    local offset = 40
+
+    local function get_color(state)
+        if manual_state == state then return r, g, b, a end
+        return 25, 25, 25, 150
+    end
+
+    local lr, lg, lb, la = get_color(1)
+    renderer.triangle(cx - offset, cy, cx - offset + 10, cy - 5, cx - offset + 10, cy + 5, lr, lg, lb, la)
+
+    local rr, rg, rb, ra = get_color(2)
+    renderer.triangle(cx + offset, cy, cx + offset - 10, cy - 5, cx + offset - 10, cy + 5, rr, rg, rb, ra)
+
+    local br, bg, bb, ba = get_color(0)
+    renderer.triangle(cx, cy + offset, cx - 5, cy + offset - 10, cx + 5, cy + offset - 10, br, bg, bb, ba)
+end
+
+-- ==========================================
+-- [ TASER WARNING ESP ]
+-- ==========================================
+local taser_svg_raw = "<svg id=\"svg\" version=\"1.1\" width=\"608\" height=\"689\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" ><g id=\"svgg\"><path id=\"path0\" d=\"M185.803 18.945 C 184.779 19.092,182.028 23.306,174.851 35.722 C 169.580 44.841,157.064 66.513,147.038 83.882 C 109.237 149.365,100.864 163.863,93.085 177.303 C 88.686 184.901,78.772 202.072,71.053 215.461 C 63.333 228.849,53.959 245.069,50.219 251.505 C 46.480 257.941,43.421 263.491,43.421 263.837 C 43.421 264.234,69.566 264.530,114.025 264.635 L 184.628 264.803 181.217 278.618 C 179.342 286.217,174.952 304.128,171.463 318.421 C 167.974 332.714,160.115 364.836,153.999 389.803 C 147.882 414.770,142.934 435.254,143.002 435.324 C 143.127 435.452,148.286 428.934,199.343 364.145 C 215.026 344.243,230.900 324.112,234.619 319.408 C 238.337 314.704,254.449 294.276,270.423 274.013 C 286.397 253.750,303.090 232.582,307.519 226.974 C 340.870 184.745,355.263 166.399,355.263 166.117 C 355.263 165.937,323.554 165.789,284.798 165.789 C 223.368 165.789,214.380 165.667,214.701 164.831 C 215.039 163.949,222.249 151.366,243.554 114.474 C 280.604 50.317,298.192 19.768,298.267 19.444 C 298.355 19.064,188.388 18.576,185.803 18.945 \" stroke=\"none\" fill=\"#ffffff\" fill-rule=\"evenodd\"></path></g></svg>"
+local taser_svg = renderer.load_svg(taser_svg_raw, 150, 150)
+
+local function draw_taser_warning()
+    if not ui.get(taser_warning_enabled) then return end
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+    local lpx, lpy, lpz = entity.get_prop(me, "m_vecOrigin")
+    local players = entity.get_players(true)
+
+    for i=1, #players do
+        local enemy = players[i]
+        if entity.is_alive(enemy) then
+            local wpn = entity.get_player_weapon(enemy)
+            if wpn and entity.get_classname(wpn) == "CWeaponTaser" then
+                local ex, ey, ez = entity.get_prop(enemy, "m_vecOrigin")
+                if lpx and ex then
+                    local dist = math.sqrt((lpx-ex)^2 + (lpy-ey)^2 + (lpz-ez)^2)
+                    local bbox = { entity.get_bounding_box(enemy) }
+                    if bbox[1] ~= nil and dist < 190 then
+                        local a = math.floor(255 * math.abs(math.sin(globals.curtime() * 8)))
+                        renderer.texture(taser_svg, bbox[1] - 22, bbox[2], 20, 20, 255, 50, 50, a * bbox[5], "f")
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ==========================================
+-- [ ZEUS & KNIFE RANGE RINGS - THICK & GLOW ]
+-- ==========================================
+local function draw_range_rings()
+    if not ui.get(range_rings_enabled) then return end
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+    local wpn = entity.get_player_weapon(me)
+    if not wpn then return end
+    
+    local classname = entity.get_classname(wpn)
+    local is_knife = classname:find("Knife") or classname:find("Bayonet")
+    local is_zeus = classname == "CWeaponTaser"
+    
+    if is_knife or is_zeus then
+        local x, y, z = entity.get_prop(me, "m_vecOrigin")
+        local radius = is_zeus and 190 or 60
+        local r, g, b, a = ui.get(range_color)
+        
+        local accuracy = 60
+        local step = (math.pi * 2) / accuracy
+        
+        -- Para fazer o "Glow" e deixar mais grosso, desenhamos 3 anéis sobrepostos
+        local offsets = { -1, 0, 1 }
+        local alphas = { math.floor(a * 0.3), a, math.floor(a * 0.3) }
+        
+        for j = 1, 3 do
+            local current_radius = radius + offsets[j]
+            local current_alpha = alphas[j]
+            local prev_sx, prev_sy
+            
+            for i = 0, accuracy do
+                local theta = i * step
+                local px = x + (current_radius * math.cos(theta))
+                local py = y + (current_radius * math.sin(theta))
+                
+                local sx, sy = renderer.world_to_screen(px, py, z)
+                
+                if sx and sy then
+                    if prev_sx and prev_sy then
+                        renderer.line(prev_sx, prev_sy, sx, sy, r, g, b, current_alpha)
+                    end
+                    prev_sx, prev_sy = sx, sy
+                else
+                    prev_sx, prev_sy = nil, nil
+                end
+            end
+        end
+    end
+end
+
+-- ==========================================
+-- [ SOUND PLAYER HELPER ]
+-- ==========================================
+local function play_custom_sound(type)
+    local file = type == "hit" and ui.get(hitsound_file) or ui.get(killsound_file)
+    if file == "" then return end
+    
+    if not file:find("%.wav") and not file:find("%.mp3") then
+        file = file .. ".wav"
+    end
+
+    local vol = ui.get(sound_volume)
+    if native_Surface_PlaySound then
+        for i=1, vol do native_Surface_PlaySound(file) end
+    else
+        for i=1, vol do client.exec("play " .. file) end
+    end
 end
 
 -- ==========================================
@@ -1004,7 +1213,7 @@ local function on_player_death_sparkles(e)
         if vx and vy and vz then
             local pos = ffi.new("struct spark_vec3_t", { vx, vy, vz + 40 })
             local dir = ffi.new("struct spark_vec3_t", { 0, 0, 0 })
-            FX_ElectricSpark(pos, radius, length, dir)
+            if FX_ElectricSpark then FX_ElectricSpark(pos, radius, length, dir) end
         end
     end
 end
@@ -1066,11 +1275,15 @@ local function queue_with_delay(msg)
 end
 
 local function on_killsay_player_death(e)
-    if not ui.get(killsay_enabled) or is_spectator() then return end
-
     local lp = entity.get_local_player()
     local attacker_ent = client.userid_to_entindex(e.attacker)
     local victim_ent = client.userid_to_entindex(e.userid)
+
+    if attacker_ent == lp and victim_ent ~= lp then
+        if ui.get(killsound_enabled) then play_custom_sound("kill") end
+    end
+
+    if not ui.get(killsay_enabled) or is_spectator() then return end
 
     if victim_ent == lp and attacker_ent ~= lp and attacker_ent then
         if ui.get(killsay_death) then
@@ -1205,7 +1418,7 @@ local cjump_jumped = false
 local function on_setup_command(cmd)
     handle_nade_dropper(cmd)
 
-    -- Lógica do Crouch Jump Assist da Train (Adaptada)
+    -- Lógica do Crouch Jump Assist da Train
     if ui.get(crouch_jump_enabled) and globals.mapname() == "de_train" then
         local active = ui.get(crouch_jump_hotkey)
         local on_press = active and not cjump_was_active
@@ -1255,6 +1468,11 @@ local function on_setup_command(cmd)
 end
 
 client.set_event_callback("paint", function()
+    handle_manual_aa()
+    draw_manual_aa()
+    draw_taser_warning()
+    draw_range_rings()
+    
     update_clantag()
     draw_crosshair_hud()
     draw_slowdown_warning()
@@ -1280,6 +1498,18 @@ client.set_event_callback("weapon_fire", function(e)
             end)
         else
             handle_quick_switch(e.weapon)
+        end
+    end
+end)
+
+client.set_event_callback("player_hurt", function(e)
+    local me = entity.get_local_player()
+    local attacker = client.userid_to_entindex(e.attacker)
+    local victim = client.userid_to_entindex(e.userid)
+    
+    if attacker == me and victim ~= me then
+        if e.health > 0 then
+            if ui.get(hitsound_enabled) then play_custom_sound("hit") end
         end
     end
 end)
