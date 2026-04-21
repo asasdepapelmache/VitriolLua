@@ -1,26 +1,23 @@
---[[
-    =============================================
-                 Vitriol.lua by larihvh
-    =============================================
-]]
+-- Vitriol.lua by larihvh
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
 
 local function get_refs(...) return { ui.reference(...) } end
 
-local ref_dt = get_refs("Rage", "Aimbot", "Double tap")
-local ref_hs = get_refs("AA", "Other", "On shot anti-aim")
-local ref_fd = get_refs("Rage", "Other", "Duck peek assist")
-local ref_baim = get_refs("Rage", "Aimbot", "Force body aim")
-local ref_sp = get_refs("Rage", "Aimbot", "Force safe point")
-local ref_fs = get_refs("AA", "Anti-aimbot angles", "Freestanding")
-local ref_dmg = get_refs("RAGE", "Aimbot", "Minimum damage")
-local ref_ovr = get_refs("RAGE", "Aimbot", "Minimum damage override")
-local ref_qpeek = get_refs("Rage", "Other", "Quick peek assist")
-
-local ref_yaw_base = ui.reference("AA", "Anti-aimbot angles", "Yaw base")
-local ref_yaw, ref_yaw_slider = ui.reference("AA", "Anti-aimbot angles", "Yaw")
+local refs = {
+    dt = get_refs("Rage", "Aimbot", "Double tap"),
+    hs = get_refs("AA", "Other", "On shot anti-aim"),
+    fd = get_refs("Rage", "Other", "Duck peek assist"),
+    baim = get_refs("Rage", "Aimbot", "Force body aim"),
+    sp = get_refs("Rage", "Aimbot", "Force safe point"),
+    fs = get_refs("AA", "Anti-aimbot angles", "Freestanding"),
+    dmg = get_refs("RAGE", "Aimbot", "Minimum damage"),
+    ovr = get_refs("RAGE", "Aimbot", "Minimum damage override"),
+    qpeek = get_refs("Rage", "Other", "Quick peek assist"),
+    yaw_base = ui.reference("AA", "Anti-aimbot angles", "Yaw base"),
+    yaw_slider = select(2, ui.reference("AA", "Anti-aimbot angles", "Yaw"))
+}
 
 -- ==========================================
 -- [ FFI - SPARKLES & SAFE AUDIO ]
@@ -54,108 +51,113 @@ end)
 -- ==========================================
 -- [ MENU UI ]
 -- ==========================================
+local m = {}
 ui.new_label(TAB, CONTAINER, "====== [ Vitriol.lua ] ======")
 
 -- Clantag
 ui.new_label(TAB, CONTAINER, "--- Clantag ---")
-local clantag_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol.lua Clantag")
-local clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static", "Clock" })
-local clantag_timezone = ui.new_combobox(TAB, CONTAINER, "Clock Timezone", { "Brasília", "Amazonas" })
-local clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
-local clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
+m.clantag_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol.lua Clantag")
+m.clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static", "Clock" })
+m.clantag_timezone = ui.new_combobox(TAB, CONTAINER, "Clock Timezone", { "Brasília", "Amazonas" })
+m.clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
+m.clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
 
 -- Crosshair Indicators
 ui.new_label(TAB, CONTAINER, "--- Indicators ---")
-local hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
-local hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
-local hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
+m.hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
+m.hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
+m.hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
 
 -- New ESP / Indicators
 ui.new_label(TAB, CONTAINER, "--- Extra ESP ---")
-local manual_aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Manual AA Arrows")
-local manual_aa_color = ui.new_color_picker(TAB, CONTAINER, "Manual AA Color", 255, 105, 180, 255)
-local hotkey_left = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Left")
-local hotkey_back = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Back")
-local hotkey_right = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Right")
+m.manual_aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Manual AA Arrows")
+m.manual_aa_color = ui.new_color_picker(TAB, CONTAINER, "Manual AA Color", 255, 105, 180, 255)
+m.hotkey_left = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Left")
+m.hotkey_back = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Back")
+m.hotkey_right = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Right")
 
-local taser_warning_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Taser Warning ESP")
-local range_rings_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Zeus & Knife Range Rings")
-local range_color = ui.new_color_picker(TAB, CONTAINER, "Range Ring Color", 255, 105, 180, 255)
+m.taser_warning_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Taser Warning ESP")
+m.range_rings_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Zeus & Knife Range Rings")
+m.range_color = ui.new_color_picker(TAB, CONTAINER, "Range Ring Color", 255, 105, 180, 255)
 
 -- Logs na Tela, Hitmarker, Sparkles & Watermark
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
-local watermark_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Watermark")
-local watermark_color = ui.new_color_picker(TAB, CONTAINER, "Watermark Accent", 255, 105, 180, 255)
+m.watermark_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Watermark")
+m.watermark_color = ui.new_color_picker(TAB, CONTAINER, "Watermark Accent", 255, 105, 180, 255)
 
-local logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
-local logs_pos_ui = ui.new_combobox(TAB, CONTAINER, "Screen Logs Position", { "Left (Default)", "Neverlose", "Center" })
+m.logs_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Event Logs")
+m.logs_pos_ui = ui.new_combobox(TAB, CONTAINER, "Screen Logs Position", { "Left (Default)", "Neverlose", "Center" })
 
-local hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
-local hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)", "Damage Number" })
+m.hitmarker_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable 3D Heart Hitmarker")
+m.hitmarker_style = ui.new_combobox(TAB, CONTAINER, "Hitmarker Style", { "Text (<3)", "Icon (❤)", "Damage Number" })
 
-local slowdown_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Slowdown Warning")
-local slowdown_color = ui.new_color_picker(TAB, CONTAINER, "Slowdown Accent Color", 255, 105, 180, 255)
+m.slowdown_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Slowdown Warning")
+m.slowdown_color = ui.new_color_picker(TAB, CONTAINER, "Slowdown Accent Color", 255, 105, 180, 255)
 
-local stamina_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Stamina Meter")
-local stamina_color = ui.new_color_picker(TAB, CONTAINER, "Stamina Accent Color", 255, 105, 180, 255)
+m.stamina_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Stamina Meter")
+m.stamina_color = ui.new_color_picker(TAB, CONTAINER, "Stamina Accent Color", 255, 105, 180, 255)
 
-local sparkles_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Death Sparkles")
-local sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255, 255, 255, 255)
-local sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
-local sparkles_length = ui.new_slider(TAB, CONTAINER, "Sparkle Length", 1, 10, 2)
+m.sparkles_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Death Sparkles")
+m.sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255, 255, 255, 255)
+m.sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
+m.sparkles_length = ui.new_slider(TAB, CONTAINER, "Sparkle Length", 1, 10, 2)
+
+-- Netgraph (Aesthetic Style)
+ui.new_label(TAB, CONTAINER, "--- Netgraph ---")
+m.netgraph_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Netgraph")
+m.netgraph_color = ui.new_color_picker(TAB, CONTAINER, "Netgraph Color", 255, 255, 255, 255)
+m.netgraph_size = ui.new_combobox(TAB, CONTAINER, "Netgraph Size", { "Mini", "Normal" })
+m.netgraph_x = ui.new_slider(TAB, CONTAINER, "Netgraph X Offset (%)", 0, 100, 85, true, "%")
+m.netgraph_y = ui.new_slider(TAB, CONTAINER, "Netgraph Y Offset (%)", 0, 100, 90, true, "%")
 
 -- Camera & Viewmodel
 ui.new_label(TAB, CONTAINER, "--- Camera & Viewmodel ---")
-local camera_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Camera Mods")
-local aspect_ratio_slider = ui.new_slider(TAB, CONTAINER, "Aspect Ratio (0 = Default)", 0, 200, 0, true, "%", 0.01)
-local viewmodel_fov = ui.new_slider(TAB, CONTAINER, "Viewmodel FOV", 40, 120, 68)
-local viewmodel_x = ui.new_slider(TAB, CONTAINER, "Viewmodel X", -20, 20, 2)
-local viewmodel_y = ui.new_slider(TAB, CONTAINER, "Viewmodel Y", -20, 20, 0)
-local viewmodel_z = ui.new_slider(TAB, CONTAINER, "Viewmodel Z", -20, 20, -1)
+m.camera_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Camera Mods")
+m.aspect_ratio_slider = ui.new_slider(TAB, CONTAINER, "Aspect Ratio (0 = Default)", 0, 200, 0, true, "%", 0.01)
+m.viewmodel_fov = ui.new_slider(TAB, CONTAINER, "Viewmodel FOV", 40, 120, 68)
+m.viewmodel_x = ui.new_slider(TAB, CONTAINER, "Viewmodel X", -20, 20, 2)
+m.viewmodel_y = ui.new_slider(TAB, CONTAINER, "Viewmodel Y", -20, 20, 0)
+m.viewmodel_z = ui.new_slider(TAB, CONTAINER, "Viewmodel Z", -20, 20, -1)
 
 -- Custom Sounds
 ui.new_label(TAB, CONTAINER, "--- Custom Sounds ---")
-local hitsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Hitsound")
-local hitsound_file = ui.new_textbox(TAB, CONTAINER, "Hitsound File (in csgo/sound/)")
-local killsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Killsound")
-local killsound_file = ui.new_textbox(TAB, CONTAINER, "Killsound File (in csgo/sound/)")
-local sound_volume = ui.new_slider(TAB, CONTAINER, "Sound Volume Multiplier", 1, 5, 1, true, "x")
+m.hitsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Hitsound")
+m.hitsound_file = ui.new_textbox(TAB, CONTAINER, "Hitsound File (in csgo/sound/)")
+m.killsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Killsound")
+m.killsound_file = ui.new_textbox(TAB, CONTAINER, "Killsound File (in csgo/sound/)")
+m.sound_volume = ui.new_slider(TAB, CONTAINER, "Sound Volume Multiplier", 1, 5, 1, true, "x")
 
 -- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
-local killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Trash Talk")
-local killsay_name = ui.new_checkbox(TAB, CONTAINER, "Name on Killsay")
-local killsay_death = ui.new_checkbox(TAB, CONTAINER, "Enable Deathsay (When you die)")
-local killsay_molly = ui.new_checkbox(TAB, CONTAINER, "Enable Molotov Say")
-local killsay_revenge = ui.new_checkbox(TAB, CONTAINER, "Enable Revenge Say")
-local killsay_delay = ui.new_slider(TAB, CONTAINER, "Message Delay (s)", 0, 5, 0, true, "s", 1)
+m.killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Trash Talk")
+m.killsay_name = ui.new_checkbox(TAB, CONTAINER, "Name on Killsay")
+m.killsay_death = ui.new_checkbox(TAB, CONTAINER, "Enable Deathsay (When you die)")
+m.killsay_molly = ui.new_checkbox(TAB, CONTAINER, "Enable Molotov Say")
+m.killsay_revenge = ui.new_checkbox(TAB, CONTAINER, "Enable Revenge Say")
+m.killsay_delay = ui.new_slider(TAB, CONTAINER, "Message Delay (s)", 0, 5, 0, true, "s", 1)
 
 -- Buybot
 ui.new_label(TAB, CONTAINER, "--- Buybot ---")
-local buybot_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Buybot")
-local buybot_primary = ui.new_combobox(TAB, CONTAINER, "Primary weapon",
-    { "None", "Auto", "Scout", "Awp", "Primary rifle", "Scoped rifle", "Machine gun" })
-local buybot_secondary = ui.new_combobox(TAB, CONTAINER, "Secondary weapon",
-    { "None", "Default pistol", "P250", "Dual Berettas", "Light pistol", "Heavy pistol" })
-local buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility",
-    { "Grenade", "Smoke", "Incendiary", "Flashbang", "Kevlar + Helmet", "Defuse kit", "Zeus" })
+m.buybot_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Buybot")
+m.buybot_primary = ui.new_combobox(TAB, CONTAINER, "Primary weapon", { "None", "Auto", "Scout", "Awp", "Primary rifle", "Scoped rifle", "Machine gun" })
+m.buybot_secondary = ui.new_combobox(TAB, CONTAINER, "Secondary weapon", { "None", "Default pistol", "P250", "Dual Berettas", "Light pistol", "Heavy pistol" })
+m.buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility", { "Grenade", "Smoke", "Incendiary", "Flashbang", "Kevlar + Helmet", "Defuse kit", "Zeus" })
 
 -- Misc
 ui.new_label(TAB, CONTAINER, "--- Misc ---")
-local crouch_jump_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Train Jump Assist")
-local crouch_jump_hotkey = ui.new_hotkey(TAB, CONTAINER, "Train Jump Hotkey", true)
-local crouch_jump_delay = ui.new_slider(TAB, CONTAINER, "Delay before jump", 0, 1000, 20, true, "ms")
-local crouch_release_delay = ui.new_slider(TAB, CONTAINER, "Delay before duck release", 0, 1000, 450, true, "ms")
+m.crouch_jump_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Train Jump Assist")
+m.crouch_jump_hotkey = ui.new_hotkey(TAB, CONTAINER, "Train Jump Hotkey", true)
+m.crouch_jump_delay = ui.new_slider(TAB, CONTAINER, "Delay before jump", 0, 1000, 20, true, "ms")
+m.crouch_release_delay = ui.new_slider(TAB, CONTAINER, "Delay before duck release", 0, 1000, 450, true, "ms")
 
-local drop_nades_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Nade Dropper")
-local drop_nades_hotkey = ui.new_hotkey(TAB, CONTAINER, "Nade Dropper Hotkey", true)
-local drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop",
-    { "HE", "Smoke", "Molotov", "Flashbang", "Decoy" })
+m.drop_nades_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Nade Dropper")
+m.drop_nades_hotkey = ui.new_hotkey(TAB, CONTAINER, "Nade Dropper Hotkey", true)
+m.drop_nades_select = ui.new_multiselect(TAB, CONTAINER, "Nades to drop", { "HE", "Smoke", "Molotov", "Flashbang", "Decoy" })
 
-local quick_switch_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Quick Switch")
-local quick_switch_select = ui.new_multiselect(TAB, CONTAINER, "Quick Switch Weapons", { "AWP", "Scout" })
-local knife_retreat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Knife Retreat (Auto Peek)")
-local sync_hotkeys_enabled = ui.new_checkbox(TAB, CONTAINER, "Sync Ragebot Hotkeys")
+m.quick_switch_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Quick Switch")
+m.quick_switch_select = ui.new_multiselect(TAB, CONTAINER, "Quick Switch Weapons", { "AWP", "Scout" })
+m.knife_retreat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Knife Retreat (Auto Peek)")
+m.sync_hotkeys_enabled = ui.new_checkbox(TAB, CONTAINER, "Sync Ragebot Hotkeys")
 
 ui.new_label(TAB, CONTAINER, "=========================")
 
@@ -175,17 +177,14 @@ local orig_cvars = {
 local camera_was_on = false
 
 local function handle_camera_mods()
-    if ui.get(camera_enabled) then
-        local ar = ui.get(aspect_ratio_slider)
-
+    if ui.get(m.camera_enabled) then
+        local ar = ui.get(m.aspect_ratio_slider)
         cvar.r_aspectratio:set_raw_float(ar == 0 and 0 or (ar / 100))
-
         cvar.viewmodel_presetpos:set_raw_int(0)
-        cvar.viewmodel_fov:set_raw_float(ui.get(viewmodel_fov))
-        cvar.viewmodel_offset_x:set_raw_float(ui.get(viewmodel_x))
-        cvar.viewmodel_offset_y:set_raw_float(ui.get(viewmodel_y))
-        cvar.viewmodel_offset_z:set_raw_float(ui.get(viewmodel_z))
-
+        cvar.viewmodel_fov:set_raw_float(ui.get(m.viewmodel_fov))
+        cvar.viewmodel_offset_x:set_raw_float(ui.get(m.viewmodel_x))
+        cvar.viewmodel_offset_y:set_raw_float(ui.get(m.viewmodel_y))
+        cvar.viewmodel_offset_z:set_raw_float(ui.get(m.viewmodel_z))
         camera_was_on = true
     elseif camera_was_on then
         cvar.r_aspectratio:set_raw_float(orig_cvars.ar)
@@ -197,7 +196,6 @@ local function handle_camera_mods()
         camera_was_on = false
     end
 end
-
 
 -- ==========================================
 -- [ CLANTAG FUNCTIONS ]
@@ -220,46 +218,36 @@ local function set_tag(tag)
     end
 end
 
-ui.set_callback(clantag_sync, function()
+ui.set_callback(m.clantag_sync, function()
     current_frame = 1
     last_update_time = globals.realtime()
 end)
 
 local function update_clantag()
-    if not ui.get(clantag_enabled) then return end
+    if not ui.get(m.clantag_enabled) then return end
 
-    local c_type = ui.get(clantag_type)
+    local c_type = ui.get(m.clantag_type)
 
     if c_type == "Clock" then
         local unix = client.unix_time()
-        local offset = ui.get(clantag_timezone) == "Brasília" and -3 or -4
+        local offset = ui.get(m.clantag_timezone) == "Brasília" and -3 or -4
         local total_seconds = unix + (offset * 3600)
-        
         local h = math.floor(total_seconds % 86400 / 3600)
-        local m = math.floor(total_seconds % 3600 / 60)
+        local min = math.floor(total_seconds % 3600 / 60)
         local s = total_seconds % 60
-        
-        local time_tag = string.format("%02d:%02d:%02d", h, m, s)
-        set_tag(time_tag)
+        set_tag(string.format("%02d:%02d:%02d", h, min, s))
         return
-    end
-
-    if c_type == "Static" then
+    elseif c_type == "Static" then
         set_tag(static_tag)
         return
-    end
-
-    if c_type == "Animated" then
+    elseif c_type == "Animated" then
         local current_time = globals.realtime()
-        local speed = ui.get(clantag_speed) * 0.1
+        local speed = ui.get(m.clantag_speed) * 0.1
 
         if current_time - last_update_time >= speed then
             set_tag(clantag_frames[current_frame])
             current_frame = current_frame + 1
-
-            if current_frame > #clantag_frames then
-                current_frame = 1
-            end
+            if current_frame > #clantag_frames then current_frame = 1 end
             last_update_time = current_time
         end
     end
@@ -271,126 +259,101 @@ local function reset_clantag()
     current_frame = 1
 end
 
-
 -- ==========================================
 -- [ VISIBILITY HANDLER ]
 -- ==========================================
 local function handle_menu()
-    -- Clantag
-    local c_state = ui.get(clantag_enabled)
-    local c_type = ui.get(clantag_type)
-    ui.set_visible(clantag_type, c_state)
-    ui.set_visible(clantag_timezone, c_state and c_type == "Clock")
-    ui.set_visible(clantag_speed, c_state and c_type == "Animated")
-    ui.set_visible(clantag_sync, c_state and c_type == "Animated")
+    local c_state = ui.get(m.clantag_enabled)
+    local c_type = ui.get(m.clantag_type)
+    ui.set_visible(m.clantag_type, c_state)
+    ui.set_visible(m.clantag_timezone, c_state and c_type == "Clock")
+    ui.set_visible(m.clantag_speed, c_state and c_type == "Animated")
+    ui.set_visible(m.clantag_sync, c_state and c_type == "Animated")
 
-    -- HUD
-    local h_state = ui.get(hud_enabled)
-    ui.set_visible(hud_style, h_state)
-    ui.set_visible(hud_color, h_state)
+    local h_state = ui.get(m.hud_enabled)
+    ui.set_visible(m.hud_style, h_state)
+    ui.set_visible(m.hud_color, h_state)
 
-    -- Extra ESP
-    local maa_state = ui.get(manual_aa_enabled)
-    ui.set_visible(manual_aa_color, maa_state)
-    ui.set_visible(hotkey_left, maa_state)
-    ui.set_visible(hotkey_back, maa_state)
-    ui.set_visible(hotkey_right, maa_state)
+    local maa_state = ui.get(m.manual_aa_enabled)
+    ui.set_visible(m.manual_aa_color, maa_state)
+    ui.set_visible(m.hotkey_left, maa_state)
+    ui.set_visible(m.hotkey_back, maa_state)
+    ui.set_visible(m.hotkey_right, maa_state)
+    ui.set_visible(m.range_color, ui.get(m.range_rings_enabled))
 
-    ui.set_visible(range_color, ui.get(range_rings_enabled))
+    local wm_state = ui.get(m.watermark_enabled)
+    ui.set_visible(m.watermark_color, wm_state)
 
-    -- Visuals
-    local wm_state = ui.get(watermark_enabled)
-    ui.set_visible(watermark_color, wm_state)
+    local hm_state = ui.get(m.hitmarker_enabled)
+    ui.set_visible(m.hitmarker_style, hm_state)
 
-    local hm_state = ui.get(hitmarker_enabled)
-    ui.set_visible(hitmarker_style, hm_state)
+    local sd_state = ui.get(m.slowdown_enabled)
+    ui.set_visible(m.slowdown_color, sd_state)
 
-    local sd_state = ui.get(slowdown_enabled)
-    ui.set_visible(slowdown_color, sd_state)
+    local st_state = ui.get(m.stamina_enabled)
+    ui.set_visible(m.stamina_color, st_state)
 
-    local st_state = ui.get(stamina_enabled)
-    ui.set_visible(stamina_color, st_state)
+    local lg_state = ui.get(m.logs_enabled)
+    ui.set_visible(m.logs_pos_ui, lg_state)
 
-    local lg_state = ui.get(logs_enabled)
-    ui.set_visible(logs_pos_ui, lg_state)
+    local sp_state = ui.get(m.sparkles_enabled)
+    ui.set_visible(m.sparkles_color, sp_state)
+    ui.set_visible(m.sparkles_radius, sp_state)
+    ui.set_visible(m.sparkles_length, sp_state)
+    
+    local ng_state = ui.get(m.netgraph_enabled)
+    ui.set_visible(m.netgraph_color, ng_state)
+    ui.set_visible(m.netgraph_size, ng_state)
+    ui.set_visible(m.netgraph_x, ng_state)
+    ui.set_visible(m.netgraph_y, ng_state)
 
-    local sp_state = ui.get(sparkles_enabled)
-    ui.set_visible(sparkles_color, sp_state)
-    ui.set_visible(sparkles_radius, sp_state)
-    ui.set_visible(sparkles_length, sp_state)
+    local cam_state = ui.get(m.camera_enabled)
+    ui.set_visible(m.aspect_ratio_slider, cam_state)
+    ui.set_visible(m.viewmodel_fov, cam_state)
+    ui.set_visible(m.viewmodel_x, cam_state)
+    ui.set_visible(m.viewmodel_y, cam_state)
+    ui.set_visible(m.viewmodel_z, cam_state)
 
-    -- Camera Mods
-    local cam_state = ui.get(camera_enabled)
-    ui.set_visible(aspect_ratio_slider, cam_state)
-    ui.set_visible(viewmodel_fov, cam_state)
-    ui.set_visible(viewmodel_x, cam_state)
-    ui.set_visible(viewmodel_y, cam_state)
-    ui.set_visible(viewmodel_z, cam_state)
+    local hs_state = ui.get(m.hitsound_enabled)
+    ui.set_visible(m.hitsound_file, hs_state)
+    local ks_state = ui.get(m.killsound_enabled)
+    ui.set_visible(m.killsound_file, ks_state)
+    ui.set_visible(m.sound_volume, hs_state or ks_state)
 
-    -- Custom Sounds
-    local hs_state = ui.get(hitsound_enabled)
-    ui.set_visible(hitsound_file, hs_state)
-    local ks_state = ui.get(killsound_enabled)
-    ui.set_visible(killsound_file, ks_state)
-    ui.set_visible(sound_volume, hs_state or ks_state)
+    local k_state = ui.get(m.killsay_enabled)
+    ui.set_visible(m.killsay_name, k_state)
+    ui.set_visible(m.killsay_death, k_state)
+    ui.set_visible(m.killsay_molly, k_state)
+    ui.set_visible(m.killsay_revenge, k_state)
+    ui.set_visible(m.killsay_delay, k_state)
 
-    -- Trash Talk
-    local k_state = ui.get(killsay_enabled)
-    ui.set_visible(killsay_name, k_state)
-    ui.set_visible(killsay_death, k_state)
-    ui.set_visible(killsay_molly, k_state)
-    ui.set_visible(killsay_revenge, k_state)
-    ui.set_visible(killsay_delay, k_state)
+    local b_state = ui.get(m.buybot_enabled)
+    ui.set_visible(m.buybot_primary, b_state)
+    ui.set_visible(m.buybot_secondary, b_state)
+    ui.set_visible(m.buybot_utility, b_state)
 
-    -- Buybot
-    local b_state = ui.get(buybot_enabled)
-    ui.set_visible(buybot_primary, b_state)
-    ui.set_visible(buybot_secondary, b_state)
-    ui.set_visible(buybot_utility, b_state)
+    local cj_state = ui.get(m.crouch_jump_enabled)
+    ui.set_visible(m.crouch_jump_hotkey, cj_state)
+    ui.set_visible(m.crouch_jump_delay, cj_state)
+    ui.set_visible(m.crouch_release_delay, cj_state)
 
-    -- Misc
-    local cj_state = ui.get(crouch_jump_enabled)
-    ui.set_visible(crouch_jump_hotkey, cj_state)
-    ui.set_visible(crouch_jump_delay, cj_state)
-    ui.set_visible(crouch_release_delay, cj_state)
+    local dn_state = ui.get(m.drop_nades_enabled)
+    ui.set_visible(m.drop_nades_hotkey, dn_state)
+    ui.set_visible(m.drop_nades_select, dn_state)
 
-    local m_state = ui.get(drop_nades_enabled)
-    ui.set_visible(drop_nades_hotkey, m_state)
-    ui.set_visible(drop_nades_select, m_state)
-
-    local qs_state = ui.get(quick_switch_enabled)
-    ui.set_visible(quick_switch_select, qs_state)
+    local qs_state = ui.get(m.quick_switch_enabled)
+    ui.set_visible(m.quick_switch_select, qs_state)
 end
 
-ui.set_callback(clantag_enabled, function()
-    handle_menu()
-    if not ui.get(clantag_enabled) then
-        reset_clantag()
-    end
+local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled }
+for i=1, #callbacks_list do
+    ui.set_callback(callbacks_list[i], handle_menu)
+end
+
+ui.set_callback(m.clantag_enabled, function()
+    if not ui.get(m.clantag_enabled) then reset_clantag() end
 end)
-
-ui.set_callback(camera_enabled, handle_menu)
-ui.set_callback(clantag_type, handle_menu)
-ui.set_callback(clantag_timezone, handle_menu)
-ui.set_callback(hud_enabled, handle_menu)
-ui.set_callback(watermark_enabled, handle_menu)
-ui.set_callback(hitmarker_enabled, handle_menu)
-ui.set_callback(slowdown_enabled, handle_menu)
-ui.set_callback(stamina_enabled, handle_menu)
-ui.set_callback(logs_enabled, handle_menu)
-ui.set_callback(sparkles_enabled, handle_menu)
-ui.set_callback(manual_aa_enabled, handle_menu)
-ui.set_callback(range_rings_enabled, handle_menu)
-ui.set_callback(hitsound_enabled, handle_menu)
-ui.set_callback(killsound_enabled, handle_menu)
-ui.set_callback(killsay_enabled, handle_menu)
-ui.set_callback(buybot_enabled, handle_menu)
-ui.set_callback(crouch_jump_enabled, handle_menu)
-ui.set_callback(drop_nades_enabled, handle_menu)
-ui.set_callback(quick_switch_enabled, handle_menu)
-
 handle_menu()
-
 
 -- ==========================================
 -- [ UTILS ]
@@ -398,49 +361,38 @@ handle_menu()
 local function trim_string(s) return s:match("^%s*(.-)%s*$") end
 local function lerp(a, b, t) return a + (b - a) * t end
 
-local function is_active(refs)
-    if not refs or refs[1] == nil then return false end
-    local val = ui.get(refs[1])
+local function is_active(ref_tbl)
+    if not ref_tbl or ref_tbl[1] == nil then return false end
+    local val = ui.get(ref_tbl[1])
     local enabled = false
 
-    if type(val) == "boolean" then
-        enabled = val
-    elseif type(val) == "table" then
-        enabled = #val > 0
-    elseif type(val) == "string" then
-        enabled = (val ~= "Off" and val ~= "-")
-    else
-        enabled = true
-    end
+    if type(val) == "boolean" then enabled = val
+    elseif type(val) == "table" then enabled = #val > 0
+    elseif type(val) == "string" then enabled = (val ~= "Off" and val ~= "-")
+    else enabled = true end
 
     if not enabled then return false end
-
-    if refs[2] ~= nil and type(ui.get(refs[2])) == "boolean" then
-        return ui.get(refs[2])
-    end
-
+    if ref_tbl[2] ~= nil and type(ui.get(ref_tbl[2])) == "boolean" then return ui.get(ref_tbl[2]) end
     return true
 end
 
 local function table_contains(tbl, val)
-    for i = 1, #tbl do
-        if tbl[i] == val then return true end
-    end
+    for i = 1, #tbl do if tbl[i] == val then return true end end
     return false
 end
 
 -- ==========================================
 -- [ MANUAL AA ARROWS & LOGIC ]
 -- ==========================================
-local manual_state = 0 -- 0 = Back, 1 = Left, 2 = Right
+local manual_state = 0
 local last_press_l, last_press_r, last_press_b = 0, 0, 0
 
 local function handle_manual_aa()
-    if not ui.get(manual_aa_enabled) then return end
+    if not ui.get(m.manual_aa_enabled) then return end
     
-    local left = ui.get(hotkey_left)
-    local right = ui.get(hotkey_right)
-    local back = ui.get(hotkey_back)
+    local left = ui.get(m.hotkey_left)
+    local right = ui.get(m.hotkey_right)
+    local back = ui.get(m.hotkey_back)
 
     if left and globals.realtime() > last_press_l + 0.2 then
         manual_state = manual_state == 1 and 0 or 1
@@ -453,20 +405,20 @@ local function handle_manual_aa()
         last_press_b = globals.realtime()
     end
 
-    ui.set(ref_yaw_base, "Local view")
-    if manual_state == 0 then ui.set(ref_yaw_slider, 0)
-    elseif manual_state == 1 then ui.set(ref_yaw_slider, -90)
-    elseif manual_state == 2 then ui.set(ref_yaw_slider, 90) end
+    ui.set(refs.yaw_base, "Local view")
+    if manual_state == 0 then ui.set(refs.yaw_slider, 0)
+    elseif manual_state == 1 then ui.set(refs.yaw_slider, -90)
+    elseif manual_state == 2 then ui.set(refs.yaw_slider, 90) end
 end
 
 local function draw_manual_aa()
-    if not ui.get(manual_aa_enabled) then return end
+    if not ui.get(m.manual_aa_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
 
     local sw, sh = client.screen_size()
     local cx, cy = sw / 2, sh / 2
-    local r, g, b, a = ui.get(manual_aa_color)
+    local r, g, b, a = ui.get(m.manual_aa_color)
     local offset = 40
 
     local function get_color(state)
@@ -476,10 +428,8 @@ local function draw_manual_aa()
 
     local lr, lg, lb, la = get_color(1)
     renderer.triangle(cx - offset, cy, cx - offset + 10, cy - 5, cx - offset + 10, cy + 5, lr, lg, lb, la)
-
     local rr, rg, rb, ra = get_color(2)
     renderer.triangle(cx + offset, cy, cx + offset - 10, cy - 5, cx + offset - 10, cy + 5, rr, rg, rb, ra)
-
     local br, bg, bb, ba = get_color(0)
     renderer.triangle(cx, cy + offset, cx - 5, cy + offset - 10, cx + 5, cy + offset - 10, br, bg, bb, ba)
 end
@@ -491,7 +441,7 @@ local taser_svg_raw = "<svg id=\"svg\" version=\"1.1\" width=\"608\" height=\"68
 local taser_svg = renderer.load_svg(taser_svg_raw, 150, 150)
 
 local function draw_taser_warning()
-    if not ui.get(taser_warning_enabled) then return end
+    if not ui.get(m.taser_warning_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     local lpx, lpy, lpz = entity.get_prop(me, "m_vecOrigin")
@@ -517,10 +467,10 @@ local function draw_taser_warning()
 end
 
 -- ==========================================
--- [ ZEUS & KNIFE RANGE RINGS - THICK & GLOW ]
+-- [ ZEUS & KNIFE RANGE RINGS ]
 -- ==========================================
 local function draw_range_rings()
-    if not ui.get(range_rings_enabled) then return end
+    if not ui.get(m.range_rings_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     local wpn = entity.get_player_weapon(me)
@@ -533,12 +483,10 @@ local function draw_range_rings()
     if is_knife or is_zeus then
         local x, y, z = entity.get_prop(me, "m_vecOrigin")
         local radius = is_zeus and 190 or 60
-        local r, g, b, a = ui.get(range_color)
+        local r, g, b, a = ui.get(m.range_color)
         
         local accuracy = 60
         local step = (math.pi * 2) / accuracy
-        
-        -- Para fazer o "Glow" e deixar mais grosso, desenhamos 3 anéis sobrepostos
         local offsets = { -1, 0, 1 }
         local alphas = { math.floor(a * 0.3), a, math.floor(a * 0.3) }
         
@@ -551,9 +499,7 @@ local function draw_range_rings()
                 local theta = i * step
                 local px = x + (current_radius * math.cos(theta))
                 local py = y + (current_radius * math.sin(theta))
-                
                 local sx, sy = renderer.world_to_screen(px, py, z)
-                
                 if sx and sy then
                     if prev_sx and prev_sy then
                         renderer.line(prev_sx, prev_sy, sx, sy, r, g, b, current_alpha)
@@ -571,14 +517,11 @@ end
 -- [ SOUND PLAYER HELPER ]
 -- ==========================================
 local function play_custom_sound(type)
-    local file = type == "hit" and ui.get(hitsound_file) or ui.get(killsound_file)
+    local file = type == "hit" and ui.get(m.hitsound_file) or ui.get(m.killsound_file)
     if file == "" then return end
-    
-    if not file:find("%.wav") and not file:find("%.mp3") then
-        file = file .. ".wav"
-    end
+    if not file:find("%.wav") and not file:find("%.mp3") then file = file .. ".wav" end
 
-    local vol = ui.get(sound_volume)
+    local vol = ui.get(m.sound_volume)
     if native_Surface_PlaySound then
         for i=1, vol do native_Surface_PlaySound(file) end
     else
@@ -590,54 +533,32 @@ end
 -- [ RAGEBOT HOTKEY SYNC ]
 -- ==========================================
 local syncing = true
-
-local hotkey_type_names = {
-    [0] = "Always on",
-    "On hotkey",
-    "Toggle",
-    "Off hotkey"
-}
-
-local weapon_names = {
-    "Global", "G3SG1 / SCAR-20", "SSG 08", "AWP", "R8 Revolver",
-    "Desert Eagle", "Pistol", "Zeus", "Rifle", "Shotgun", "SMG", "Machine gun"
-}
-
+local hotkey_type_names = { [0] = "Always on", "On hotkey", "Toggle", "Off hotkey" }
+local weapon_names = { "Global", "G3SG1 / SCAR-20", "SSG 08", "AWP", "R8 Revolver", "Desert Eagle", "Pistol", "Zeus", "Rifle", "Shotgun", "SMG", "Machine gun" }
 local weapon_type_ref = ui.reference("RAGE", "Weapon type", "Weapon type")
 
 local function sync_hotkey_to_all(ref)
-    if not syncing or not ui.get(sync_hotkeys_enabled) then return end
-
+    if not syncing or not ui.get(m.sync_hotkeys_enabled) then return end
     local _, htype_num, bind = ui.get(ref)
     local htype_str = hotkey_type_names[htype_num] or "Always on"
     bind = bind or 0
-
     local current_weapon = ui.get(weapon_type_ref)
 
     for i = 1, #weapon_names do
         ui.set(weapon_type_ref, weapon_names[i])
         ui.set(ref, htype_str, bind)
     end
-
     ui.set(weapon_type_ref, current_weapon)
 end
 
 local sync_refs = {
-    select(2, ui.reference("RAGE", "Aimbot", "Enabled")),
-    select(2, ui.reference("RAGE", "Aimbot", "Multi-point")),
-    select(2, ui.reference("RAGE", "Aimbot", "Minimum damage override")),
-    select(1, ui.reference("RAGE", "Aimbot", "Force safe point")),
-    select(1, ui.reference("RAGE", "Aimbot", "Force body aim")),
-    select(2, ui.reference("RAGE", "Aimbot", "Quick stop")),
-    select(2, ui.reference("RAGE", "Aimbot", "Double tap")),
+    select(2, ui.reference("RAGE", "Aimbot", "Enabled")), select(2, ui.reference("RAGE", "Aimbot", "Multi-point")), select(2, ui.reference("RAGE", "Aimbot", "Minimum damage override")),
+    select(1, ui.reference("RAGE", "Aimbot", "Force safe point")), select(1, ui.reference("RAGE", "Aimbot", "Force body aim")), select(2, ui.reference("RAGE", "Aimbot", "Quick stop")), select(2, ui.reference("RAGE", "Aimbot", "Double tap")),
 }
-
 for i = 1, #sync_refs do
     local ref = sync_refs[i]
     if ui.type(ref) == "hotkey" then
-        ui.set_callback(ref, function()
-            sync_hotkey_to_all(ref)
-        end)
+        ui.set_callback(ref, function() sync_hotkey_to_all(ref) end)
     end
 end
 
@@ -648,59 +569,40 @@ client.set_event_callback("post_config_load", function() syncing = true end)
 -- ==========================================
 -- [ NADE DROPPER ]
 -- ==========================================
-local nade_mappings = {
-    ["CHEGrenade"] = { cmd = "weapon_hegrenade", menu = "HE" },
-    ["CSmokeGrenade"] = { cmd = "weapon_smokegrenade", menu = "Smoke" },
-    ["CMolotovGrenade"] = { cmd = "weapon_molotov", menu = "Molotov" },
-    ["CIncendiaryGrenade"] = { cmd = "weapon_incgrenade", menu = "Molotov" },
-    ["CFlashbang"] = { cmd = "weapon_flashbang", menu = "Flashbang" },
-    ["CDecoyGrenade"] = { cmd = "weapon_decoy", menu = "Decoy" }
-}
-
+local nade_mappings = { ["CHEGrenade"] = { cmd = "weapon_hegrenade", menu = "HE" }, ["CSmokeGrenade"] = { cmd = "weapon_smokegrenade", menu = "Smoke" }, ["CMolotovGrenade"] = { cmd = "weapon_molotov", menu = "Molotov" }, ["CIncendiaryGrenade"] = { cmd = "weapon_incgrenade", menu = "Molotov" }, ["CFlashbang"] = { cmd = "weapon_flashbang", menu = "Flashbang" }, ["CDecoyGrenade"] = { cmd = "weapon_decoy", menu = "Decoy" } }
 local nade_drop_queue = {}
 local nade_drop_throwing = false
 local nade_drop_old_state = false
 
 local function handle_nade_dropper(cmd)
-    if not ui.get(drop_nades_enabled) then return end
-
+    if not ui.get(m.drop_nades_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
 
-    local state = ui.get(drop_nades_hotkey)
+    local state = ui.get(m.drop_nades_hotkey)
     if state and not nade_drop_old_state and not nade_drop_throwing then
         nade_drop_queue = {}
-        local selected = ui.get(drop_nades_select)
+        local selected = ui.get(m.drop_nades_select)
 
         for i = 0, 63 do
             local weapon_ent = entity.get_prop(me, "m_hMyWeapons", i)
             if weapon_ent and weapon_ent ~= 0 and weapon_ent ~= -1 then
                 local class_name = entity.get_classname(weapon_ent)
                 local mapped = nade_mappings[class_name]
-                if mapped and table_contains(selected, mapped.menu) then
-                    table.insert(nade_drop_queue, mapped.cmd)
-                end
+                if mapped and table_contains(selected, mapped.menu) then table.insert(nade_drop_queue, mapped.cmd) end
             end
         end
-
-        if #nade_drop_queue > 0 then
-            nade_drop_throwing = true
-        end
+        if #nade_drop_queue > 0 then nade_drop_throwing = true end
     end
     nade_drop_old_state = state
 
     if #nade_drop_queue > 0 then
         local latency = client.latency() + (globals.tickinterval() * 4)
-
         for i, weapon_cmd in ipairs(nade_drop_queue) do
             local is_last = (i == #nade_drop_queue)
             client.delay_call(latency * i, function()
                 client.exec("use " .. weapon_cmd .. "; drop")
-                if is_last then
-                    client.delay_call(0.1, function()
-                        nade_drop_throwing = false
-                    end)
-                end
+                if is_last then client.delay_call(0.1, function() nade_drop_throwing = false end) end
             end)
         end
         nade_drop_queue = {}
@@ -709,10 +611,7 @@ local function handle_nade_dropper(cmd)
     if nade_drop_throwing then
         local pitch, yaw = client.camera_angles()
         local offset = pitch > 0 and -0.0001 or 0.0001
-        cmd.yaw = yaw
-        cmd.pitch = pitch + offset
-        cmd.no_choke = true
-        cmd.allow_send_packet = true
+        cmd.yaw = yaw; cmd.pitch = pitch + offset; cmd.no_choke = true; cmd.allow_send_packet = true
     end
 end
 
@@ -721,23 +620,20 @@ end
 --            [ WATERMARK ]
 -- ==========================================
 local function draw_watermark()
-    if not ui.get(watermark_enabled) then return end
+    if not ui.get(m.watermark_enabled) then return end
 
     local sw, sh = client.screen_size()
-    local r, g, b, a = ui.get(watermark_color)
-
+    local r, g, b, a = ui.get(m.watermark_color)
     local fps = math.floor(1 / globals.absoluteframetime())
     local ping = math.floor(client.latency() * 1000)
-    local h, m, s = client.system_time()
-    local time_str = string.format("%02d:%02d:%02d", h, m, s)
+    local h, min, s = client.system_time()
+    local time_str = string.format("%02d:%02d:%02d", h, min, s)
 
     local me = entity.get_local_player()
     local user = "unknown"
     if me then
         user = entity.get_player_name(me) or "unknown"
-        if string.len(user) > 15 then
-            user = string.sub(user, 1, 12) .. "..."
-        end
+        if string.len(user) > 15 then user = string.sub(user, 1, 12) .. "..." end
     end
 
     local str_base = string.format("♡ vitriol.lua | %s | ", user)
@@ -760,22 +656,16 @@ local function draw_watermark()
     renderer.rectangle(x, y, w, 2, r, g, b, a)
 
     local cx = x + padding
-
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_base)
     cx = cx + w_base
-
     renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(fps))
     cx = cx + w_num
-
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_fps_suf)
     cx = cx + w_fps_suf
-
     renderer.text(cx + w_num, y + 4, 255, 255, 255, 255, "r", 0, tostring(ping))
     cx = cx + w_num
-
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, str_ping_suf)
     cx = cx + w_ping_suf
-
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, time_str)
 end
 
@@ -784,7 +674,7 @@ end
 -- [ STAMINA METER ]
 -- ==========================================
 local function draw_stamina_meter()
-    if not ui.get(stamina_enabled) then return end
+    if not ui.get(m.stamina_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
 
@@ -804,14 +694,11 @@ local function draw_stamina_meter()
     local fraction = math.min(1, stamina / max_stamina)
     local fill_width = math.floor(bar_width * fraction)
 
-    local r, g, b, a = ui.get(stamina_color)
-    local bg_a = math.floor(a * 0.8)
-
-    renderer.rectangle(bar_x, bar_y, bar_width, bar_height, 25, 25, 25, bg_a)
+    local r, g, b, a = ui.get(m.stamina_color)
+    renderer.rectangle(bar_x, bar_y, bar_width, bar_height, 25, 25, 25, math.floor(a * 0.8))
 
     if fill_width > 0 then
         renderer.rectangle(bar_x, bar_y, fill_width, bar_height, r, g, b, a)
-
         for i = 1, 3 do
             local glow_a = math.floor(a / (i * 2.5))
             renderer.rectangle(bar_x - i, bar_y - i, fill_width + (i * 2), bar_height + (i * 2), r, g, b, glow_a)
@@ -833,12 +720,11 @@ local bit_band = bit.band
 local math_sqrt = math.sqrt
 
 local function draw_slowdown_warning()
-    if not ui.get(slowdown_enabled) then return end
+    if not ui.get(m.slowdown_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
 
     local velocity_modifier = entity.get_prop(me, "m_flVelocityModifier") or 1.0
-
     local fade_threshold = 0.95
     local fade_alpha = 1.0
 
@@ -846,7 +732,6 @@ local function draw_slowdown_warning()
         fade_alpha = (1.0 - velocity_modifier) / (1.0 - fade_threshold)
         fade_alpha = math.max(0, math.min(1, fade_alpha))
     end
-
     if fade_alpha <= 0.01 then return end
 
     local sw, sh = client.screen_size()
@@ -859,8 +744,7 @@ local function draw_slowdown_warning()
     local bar_y = cy - (cy / 1.5)
 
     local fill_width = math.floor(bar_width * velocity_modifier)
-
-    local r, g, b, a = ui.get(slowdown_color)
+    local r, g, b, a = ui.get(m.slowdown_color)
     local final_a = math.floor(a * fade_alpha)
     local bg_a = math.floor(255 * fade_alpha)
 
@@ -868,7 +752,6 @@ local function draw_slowdown_warning()
 
     if fill_width > 0 then
         renderer.rectangle(bar_x, bar_y, fill_width, bar_height, r, g, b, final_a)
-
         for i = 1, 3 do
             local glow_a = math.floor(final_a / (i * 2.5))
             renderer.rectangle(bar_x - i, bar_y - i, fill_width + (i * 2), bar_height + (i * 2), r, g, b, glow_a)
@@ -877,7 +760,6 @@ local function draw_slowdown_warning()
 
     local percentage = (1.0 - velocity_modifier) * 100
     local text = string.format("Max velocity reduced by %.0f%%", percentage)
-
     renderer.text(cx + 1, bar_y - 12 + 1, 10, 10, 10, math.floor(final_a * 0.8), "c", 0, text)
     renderer.text(cx, bar_y - 12, 255, 255, 255, final_a, "c", 0, text)
 end
@@ -885,14 +767,8 @@ end
 local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
     if value <= 0 then return y end
     local current_alpha = math.floor(a * value)
-
-    local style = ui.get(hud_style)
-    local flag = "c"
-    if style == "Normal" then
-        flag = "c"
-    elseif style == "Bold" then
-        flag = "cb"
-    end
+    local style = ui.get(m.hud_style)
+    local flag = style == "Bold" and "cb" or "c"
 
     renderer.text(x + 1, y + 1, 10, 10, 10, math.floor(current_alpha * 0.8), flag, 0, text)
     renderer.text(x, y, r, g, b, current_alpha, flag, 0, text)
@@ -901,21 +777,18 @@ local function draw_indicator(x, y, r, g, b, a, text, value, is_dt)
         local tw, th = renderer.measure_text(flag, text)
         local bar_x = x + (tw / 2) + 4
         local bar_y = y - 3
-
         for i = 0, 5 do
             local is_filled = (i / 5) <= anim_data.dt_charge
             local block_a = is_filled and current_alpha or math.floor(current_alpha * 0.2)
-
             renderer.rectangle(bar_x + (i * 4) + 1, bar_y + 1, 2, 6, 10, 10, 10, math.floor(current_alpha * 0.5))
             renderer.rectangle(bar_x + (i * 4), bar_y, 2, 6, r, g, b, block_a)
         end
     end
-
     return y + (13 * value)
 end
 
 local function draw_crosshair_hud()
-    if not ui.get(hud_enabled) then return end
+    if not ui.get(m.hud_enabled) then return end
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
 
@@ -924,52 +797,30 @@ local function draw_crosshair_hud()
     local cy = sh / 2
     local y_offset = cy + 25
     local frametime = globals.frametime() * 8
-    local r, g, b, a = ui.get(hud_color)
+    local r, g, b, a = ui.get(m.hud_color)
 
-    local style = ui.get(hud_style)
-    local flag = "c"
-    if style == "Normal" then
-        flag = "c"
-    elseif style == "Bold" then
-        flag = "cb"
-    end
+    local style = ui.get(m.hud_style)
+    local flag = style == "Bold" and "cb" or "c"
 
     local weapon_ent = entity.get_player_weapon(me)
     if weapon_ent then
         local weapon_class = entity.get_classname(weapon_ent) or ""
         local is_knife = weapon_class:find("Knife") or weapon_class:find("Bayonet")
-        local is_grenade = weapon_class:find("Grenade") or weapon_class:find("Flashbang") or
-            weapon_class:find("Molotov") or weapon_class:find("Decoy") or
-            weapon_class:find("Smoke") or weapon_class:find("Incendiary")
+        local is_grenade = weapon_class:find("Grenade") or weapon_class:find("Flashbang") or weapon_class:find("Molotov") or weapon_class:find("Decoy") or weapon_class:find("Smoke") or weapon_class:find("Incendiary")
 
         if not is_knife and not is_grenade then
-            local normal_dmg = 1
-            if ref_dmg[1] ~= nil then normal_dmg = ui.get(ref_dmg[1]) end
-
+            local normal_dmg = refs.dmg[1] ~= nil and ui.get(refs.dmg[1]) or 1
             local is_override_active = false
             local override_dmg = 1
-            if #ref_ovr == 2 then
-                is_override_active = ui.get(ref_ovr[1])
-                override_dmg = ui.get(ref_ovr[2])
-            elseif #ref_ovr == 3 then
-                is_override_active = ui.get(ref_ovr[2])
-                override_dmg = ui.get(ref_ovr[3])
-            end
+            if #refs.ovr == 2 then is_override_active = ui.get(refs.ovr[1]); override_dmg = ui.get(refs.ovr[2])
+            elseif #refs.ovr == 3 then is_override_active = ui.get(refs.ovr[2]); override_dmg = ui.get(refs.ovr[3]) end
 
             local target_dmg = is_override_active and override_dmg or normal_dmg
-
             dmg_anim.val = lerp(dmg_anim.val, target_dmg, globals.frametime() * 25)
             if math.abs(dmg_anim.val - target_dmg) < 0.5 then dmg_anim.val = target_dmg end
 
             local display_num = math.floor(dmg_anim.val + 0.5)
-            local display_text = ""
-            if display_num == 0 then
-                display_text = "Auto"
-            elseif display_num > 100 then
-                display_text = "HP+" .. tostring(display_num - 100)
-            else
-                display_text = tostring(display_num)
-            end
+            local display_text = display_num == 0 and "Auto" or (display_num > 100 and "HP+" .. tostring(display_num - 100) or tostring(display_num))
 
             local target_r, target_g, target_b = 220, 180, 255
             if is_override_active then target_r, target_g, target_b = 255, 105, 180 end
@@ -981,20 +832,19 @@ local function draw_crosshair_hud()
             local dmg_x = cx + 12
             local dmg_y = cy - 15
             renderer.text(dmg_x + 1, dmg_y + 1, 10, 10, 10, math.floor(a * 0.8), flag, 0, display_text)
-            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag,
-                0, display_text)
+            renderer.text(dmg_x, dmg_y, math.floor(dmg_anim.r), math.floor(dmg_anim.g), math.floor(dmg_anim.b), a, flag, 0, display_text)
         end
     end
 
     y_offset = draw_indicator(cx, y_offset, r, g, b, a, "VITRIOL", 1.0)
     y_offset = y_offset + 2
 
-    local is_dt = is_active(ref_dt)
-    local is_hs = is_active(ref_hs)
-    local is_fs = is_active(ref_fs)
-    local is_fd = is_active(ref_fd)
-    local is_baim = is_active(ref_baim)
-    local is_sp = is_active(ref_sp)
+    local is_dt = is_active(refs.dt)
+    local is_hs = is_active(refs.hs)
+    local is_fs = is_active(refs.fs)
+    local is_fd = is_active(refs.fd)
+    local is_baim = is_active(refs.baim)
+    local is_sp = is_active(refs.sp)
 
     anim_data.dt = math.max(0, math.min(1, anim_data.dt + (is_dt and frametime or -frametime)))
     anim_data.hs = math.max(0, math.min(1, anim_data.hs + (is_hs and frametime or -frametime)))
@@ -1002,7 +852,6 @@ local function draw_crosshair_hud()
     anim_data.fd = math.max(0, math.min(1, anim_data.fd + (is_fd and frametime or -frametime)))
     anim_data.baim = math.max(0, math.min(1, anim_data.baim + (is_baim and frametime or -frametime)))
     anim_data.sp = math.max(0, math.min(1, anim_data.sp + (is_sp and frametime or -frametime)))
-
     anim_data.dt_charge = math.max(0, math.min(1, anim_data.dt_charge + globals.frametime() * 1.5))
 
     local flags = entity.get_prop(me, "m_fFlags")
@@ -1011,13 +860,9 @@ local function draw_crosshair_hud()
     local duck_amount = entity.get_prop(me, "m_flDuckAmount")
 
     local state = "IDLE"
-    if bit_band(flags, 1) == 0 then
-        state = duck_amount > 0.5 and "AIR-C" or "AIR"
-    elseif duck_amount > 0.5 then
-        state = speed > 5 and "CROUCH-M" or "CROUCH"
-    elseif speed > 5 then
-        state = "MOVE"
-    end
+    if bit_band(flags, 1) == 0 then state = duck_amount > 0.5 and "AIR-C" or "AIR"
+    elseif duck_amount > 0.5 then state = speed > 5 and "CROUCH-M" or "CROUCH"
+    elseif speed > 5 then state = "MOVE" end
 
     y_offset = draw_indicator(cx, y_offset, 255, 255, 255, a, string.format("<%s>", state), 1.0)
     y_offset = y_offset + 2
@@ -1034,10 +879,7 @@ end
 -- ==========================================
 -- [ LOGS E HITMARKER ]
 -- ==========================================
-local hitgroup_names = {
-    "body", "head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg", "neck", "?", "gear"
-}
-
+local hitgroup_names = { "body", "head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg", "neck", "?", "gear" }
 local aim_data = {}
 local screen_logs = {}
 local hit_markers = {}
@@ -1049,50 +891,34 @@ local function add_screen_log(text, color)
 end
 
 local function draw_screen_logs()
-    if not ui.get(logs_enabled) or #screen_logs == 0 then return end
+    if not ui.get(m.logs_enabled) or #screen_logs == 0 then return end
 
     local sw, sh = client.screen_size()
-    local pos_style = ui.get(logs_pos_ui)
+    local pos_style = ui.get(m.logs_pos_ui)
     local current_time = globals.realtime()
 
     local base_x, base_y = 10, sh / 2 + 100
     local center_x = false
     local stack_dir = -1
 
-    if pos_style == "Neverlose" then
-        base_x = 10
-        base_y = 10
-        stack_dir = 1
-    elseif pos_style == "Center" then
-        center_x = true
-        base_y = sh / 2 + 200
-    end
+    if pos_style == "Neverlose" then base_x = 10; base_y = 10; stack_dir = 1
+    elseif pos_style == "Center" then center_x = true; base_y = sh / 2 + 200 end
 
     local y = base_y
-
     for i = #screen_logs, 1, -1 do
         local log = screen_logs[i]
         local time_alive = current_time - log.time
 
-        if time_alive < 0.2 then
-            log.alpha = time_alive / 0.2
-        elseif time_alive > 4.8 then
-            log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
-        else
-            log.alpha = 1.0
-        end
+        if time_alive < 0.2 then log.alpha = time_alive / 0.2
+        elseif time_alive > 4.8 then log.alpha = 1.0 - ((time_alive - 4.8) / 0.2)
+        else log.alpha = 1.0 end
 
-        if time_alive > 5.0 then
-            table.remove(screen_logs, i)
+        if time_alive > 5.0 then table.remove(screen_logs, i)
         else
             local a = math.max(0, math.floor(log.alpha * 255))
             local tw, th = renderer.measure_text("", log.text)
             local box_w = tw + 20
-            local draw_x = base_x
-
-            if center_x then
-                draw_x = (sw / 2) - (box_w / 2)
-            end
+            local draw_x = center_x and ((sw / 2) - (box_w / 2)) or base_x
 
             renderer.rectangle(draw_x, y, box_w, 20, 15, 15, 15, math.floor(a * 0.6))
             renderer.rectangle(draw_x, y, 2, 20, log.color[1], log.color[2], log.color[3], a)
@@ -1104,9 +930,9 @@ local function draw_screen_logs()
 end
 
 local function draw_3d_hitmarkers()
-    if not ui.get(hitmarker_enabled) or #hit_markers == 0 then return end
+    if not ui.get(m.hitmarker_enabled) or #hit_markers == 0 then return end
 
-    local style = ui.get(hitmarker_style)
+    local style = ui.get(m.hitmarker_style)
     local is_dmg = style == "Damage Number"
     local symbol = style == "Icon (❤)" and "❤" or "<3"
     local flag = style == "Icon (❤)" and "c" or "cb"
@@ -1116,8 +942,7 @@ local function draw_3d_hitmarkers()
         local marker = hit_markers[i]
         local time_alive = current_time - marker.time
 
-        if time_alive > 1.5 then
-            table.remove(hit_markers, i)
+        if time_alive > 1.5 then table.remove(hit_markers, i)
         else
             local sx, sy = renderer.world_to_screen(marker.x, marker.y, marker.z)
             if sx and sy then
@@ -1140,45 +965,33 @@ end
 
 local function on_aim_fire(e)
     anim_data.dt_charge = 0
-    aim_data[e.id] = {
-        target = e.target,
-        hit_chance = e.hit_chance,
-        damage = e.damage,
-        backtrack = globals.tickcount() - e.tick,
-        x = e.x,
-        y = e.y,
-        z = e.z
-    }
+    aim_data[e.id] = { target = e.target, hit_chance = e.hit_chance, damage = e.damage, backtrack = globals.tickcount() - e.tick, x = e.x, y = e.y, z = e.z }
 end
 
 local function on_aim_hit(e)
     local data = aim_data[e.id]
     if not data then return end
 
-    if ui.get(hitmarker_enabled) and data.x and data.y and data.z then
-        table.insert(hit_markers, { x = data.x, y = data.y, z = data.z, time = globals.realtime(), damage = e.damage })
-    end
+    if ui.get(m.hitmarker_enabled) and data.x and data.y and data.z then table.insert(hit_markers, { x = data.x, y = data.y, z = data.z, time = globals.realtime(), damage = e.damage }) end
+    if not ui.get(m.logs_enabled) then return end
 
-    if not ui.get(logs_enabled) then return end
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
     local hp_left = entity.get_prop(e.target, "m_iHealth")
-    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup,
-        e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
+    local log_text = string.format("Hit %s in the %s for %d dmg (hc: %d%% | bt: %d) [hp: %d]", target_name, hitgroup, e.damage, math.floor(data.hit_chance), data.backtrack, hp_left)
 
     client.color_log(255, 105, 180, "\n[Vitriol.lua] " .. log_text)
-
     add_screen_log(log_text, { 255, 105, 180 })
 end
 
 local function on_aim_miss(e)
-    if not ui.get(logs_enabled) then return end
+    if not ui.get(m.logs_enabled) then return end
     local data = aim_data[e.id]
     if not data then return end
+
     local target_name = trim_string(entity.get_player_name(e.target) or "?")
     local hitgroup = hitgroup_names[e.hitgroup + 1] or "?"
-    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason,
-        math.floor(data.hit_chance), data.backtrack)
+    local log_text = string.format("Missed %s's %s due to %s (hc: %d%% | bt: %d)", target_name, hitgroup, e.reason, math.floor(data.hit_chance), data.backtrack)
 
     client.color_log(255, 105, 180, "\n[Vitriol.lua] " .. log_text)
     add_screen_log(log_text, { 200, 60, 60 })
@@ -1188,7 +1001,7 @@ end
 -- [ DEATH SPARKLES ]
 -- ==========================================
 local function on_player_death_sparkles(e)
-    if not ui.get(sparkles_enabled) then return end
+    if not ui.get(m.sparkles_enabled) then return end
     local lp = entity.get_local_player()
     if not lp then return end
     local victim = client.userid_to_entindex(e.userid)
@@ -1196,16 +1009,13 @@ local function on_player_death_sparkles(e)
     if not victim then return end
 
     if attacker == lp and victim ~= lp then
-        local radius = ui.get(sparkles_radius)
-        local length = ui.get(sparkles_length)
-        local r, g, b, a = ui.get(sparkles_color)
+        local radius = ui.get(m.sparkles_radius)
+        local length = ui.get(m.sparkles_length)
+        local r, g, b, a = ui.get(m.sparkles_color)
 
         if spark_material then
             pcall(function()
-                if spark_material.alpha_modulate then
-                    spark_material:alpha_modulate(a)
-                    spark_material:color_modulate(r, g, b)
-                end
+                if spark_material.alpha_modulate then spark_material:alpha_modulate(a); spark_material:color_modulate(r, g, b) end
             end)
         end
 
@@ -1222,15 +1032,12 @@ end
 -- ==========================================
 -- [ TRASH TALK ]
 -- ==========================================
-local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡",
-    "voce foi ownado", "voce foi dissolvido" }
+local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡", "voce foi ownado", "voce foi dissolvido" }
 local molly_msgs = { "Churrasco de random kkk", "Assado vivo", "Fogo na inveja", "Virou cinza kkk", "Dançando no fogo" }
-local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda",
-    "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
+local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda", "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
 
 local current_idx, molly_idx, death_idx = 1, 1, 1
 local revenge_target_userid = nil
-
 local next_chat_time = 0
 
 local function is_spectator()
@@ -1239,7 +1046,7 @@ local function is_spectator()
 end
 
 local function format_message(msg, victim_ent)
-    if ui.get(killsay_name) and victim_ent then
+    if ui.get(m.killsay_name) and victim_ent then
         local victim_name = trim_string(entity.get_player_name(victim_ent) or "voce")
         msg = msg:gsub("voce", victim_name)
     end
@@ -1248,30 +1055,18 @@ end
 
 local function queue_message(msg)
     local current_time = globals.realtime()
-
-    if next_chat_time < current_time then
-        next_chat_time = current_time
-    end
+    if next_chat_time < current_time then next_chat_time = current_time end
 
     local delay_to_exec = next_chat_time - current_time
     next_chat_time = next_chat_time + 0.85
 
-    if delay_to_exec <= 0.01 then
-        client.exec('say "' .. msg .. '"')
-    else
-        client.delay_call(delay_to_exec, function()
-            client.exec('say "' .. msg .. '"')
-        end)
-    end
+    if delay_to_exec <= 0.01 then client.exec('say "' .. msg .. '"')
+    else client.delay_call(delay_to_exec, function() client.exec('say "' .. msg .. '"') end) end
 end
 
 local function queue_with_delay(msg)
-    local user_delay = ui.get(killsay_delay)
-    if user_delay <= 0.01 then
-        queue_message(msg)
-    else
-        client.delay_call(user_delay, function() queue_message(msg) end)
-    end
+    local user_delay = ui.get(m.killsay_delay)
+    if user_delay <= 0.01 then queue_message(msg) else client.delay_call(user_delay, function() queue_message(msg) end) end
 end
 
 local function on_killsay_player_death(e)
@@ -1280,27 +1075,24 @@ local function on_killsay_player_death(e)
     local victim_ent = client.userid_to_entindex(e.userid)
 
     if attacker_ent == lp and victim_ent ~= lp then
-        if ui.get(killsound_enabled) then play_custom_sound("kill") end
+        if ui.get(m.killsound_enabled) then play_custom_sound("kill") end
     end
 
-    if not ui.get(killsay_enabled) or is_spectator() then return end
+    if not ui.get(m.killsay_enabled) or is_spectator() then return end
 
     if victim_ent == lp and attacker_ent ~= lp and attacker_ent then
-        if ui.get(killsay_death) then
+        if ui.get(m.killsay_death) then
             local msg = format_message(death_msgs[death_idx], attacker_ent)
             queue_with_delay(msg)
             death_idx = death_idx % #death_msgs + 1
         end
-        if ui.get(killsay_revenge) then
-            revenge_target_userid = e.attacker
-        end
+        if ui.get(m.killsay_revenge) then revenge_target_userid = e.attacker end
         return
     end
 
-    if ui.get(killsay_revenge) and revenge_target_userid and e.userid == revenge_target_userid then
+    if ui.get(m.killsay_revenge) and revenge_target_userid and e.userid == revenge_target_userid then
         local killed_by = attacker_ent
         revenge_target_userid = nil
-
         client.delay_call(0.05, function()
             queue_with_delay("1")
             if killed_by == lp then
@@ -1317,7 +1109,7 @@ local function on_killsay_player_death(e)
     end
 
     if attacker_ent == lp and victim_ent ~= lp then
-        if e.weapon == "inferno" and ui.get(killsay_molly) then
+        if e.weapon == "inferno" and ui.get(m.killsay_molly) then
             local msg = format_message(molly_msgs[molly_idx], victim_ent)
             queue_with_delay(msg)
             molly_idx = molly_idx % #molly_msgs + 1
@@ -1330,7 +1122,7 @@ local function on_killsay_player_death(e)
 end
 
 client.set_event_callback("player_disconnect", function(e)
-    if ui.get(killsay_enabled) and ui.get(killsay_revenge) and revenge_target_userid then
+    if ui.get(m.killsay_enabled) and ui.get(m.killsay_revenge) and revenge_target_userid then
         if e.userid == revenge_target_userid and not is_spectator() then
             queue_message("rq")
             revenge_target_userid = nil
@@ -1342,38 +1134,17 @@ end)
 -- ==========================================
 -- [ BUYBOT ]
 -- ==========================================
-local buy_cmds = {
-    ["Auto"] = "scar20",
-    ["Scout"] = "ssg08",
-    ["Awp"] = "awp",
-    ["Primary rifle"] = "ak47",
-    ["Scoped rifle"] = "sg556",
-    ["Machine gun"] = "negev",
-    ["Default pistol"] = "glock",
-    ["P250"] = "p250",
-    ["Dual Berettas"] = "elite",
-    ["Light pistol"] = "tec9",
-    ["Heavy pistol"] = "deagle",
-    ["Grenade"] = "hegrenade",
-    ["Smoke"] = "smokegrenade",
-    ["Incendiary"] = "molotov",
-    ["Flashbang"] = "flashbang",
-    ["Kevlar + Helmet"] = "vesthelm",
-    ["Defuse kit"] = "defuser",
-    ["Zeus"] = "taser"
-}
+local buy_cmds = { ["Auto"] = "scar20", ["Scout"] = "ssg08", ["Awp"] = "awp", ["Primary rifle"] = "ak47", ["Scoped rifle"] = "sg556", ["Machine gun"] = "negev", ["Default pistol"] = "glock", ["P250"] = "p250", ["Dual Berettas"] = "elite", ["Light pistol"] = "tec9", ["Heavy pistol"] = "deagle", ["Grenade"] = "hegrenade", ["Smoke"] = "smokegrenade", ["Incendiary"] = "molotov", ["Flashbang"] = "flashbang", ["Kevlar + Helmet"] = "vesthelm", ["Defuse kit"] = "defuser", ["Zeus"] = "taser" }
 
 local function on_round_prestart()
-    if not ui.get(buybot_enabled) then return end
+    if not ui.get(m.buybot_enabled) then return end
     local cmds_to_run = {}
-    local primary, secondary, utility = ui.get(buybot_primary), ui.get(buybot_secondary), ui.get(buybot_utility)
+    local primary, secondary, utility = ui.get(m.buybot_primary), ui.get(m.buybot_secondary), ui.get(m.buybot_utility)
 
     if primary ~= "None" and buy_cmds[primary] then table.insert(cmds_to_run, "buy " .. buy_cmds[primary]) end
     if secondary ~= "None" and buy_cmds[secondary] then table.insert(cmds_to_run, "buy " .. buy_cmds[secondary]) end
     if #utility > 0 then
-        for i = 1, #utility do
-            if buy_cmds[utility[i]] then table.insert(cmds_to_run, "buy " .. buy_cmds[utility[i]]) end
-        end
+        for i = 1, #utility do if buy_cmds[utility[i]] then table.insert(cmds_to_run, "buy " .. buy_cmds[utility[i]]) end end
     end
     if #cmds_to_run > 0 then client.exec(table.concat(cmds_to_run, "; ")) end
 end
@@ -1381,15 +1152,11 @@ end
 -- ==========================================
 -- [ QUICK SWITCH E KNIFE RETREAT ]
 -- ==========================================
-local retreat_data = {
-    is_retreating = false,
-    start_time = 0
-}
+local retreat_data = { is_retreating = false, start_time = 0 }
 
 local function handle_quick_switch(weapon_name)
-    if not ui.get(quick_switch_enabled) then return end
-
-    local selected_weapons = ui.get(quick_switch_select)
+    if not ui.get(m.quick_switch_enabled) then return end
+    local selected_weapons = ui.get(m.quick_switch_select)
     local should_switch = false
 
     if table_contains(selected_weapons, "AWP") and (weapon_name == "awp" or weapon_name == "weapon_awp") then should_switch = true end
@@ -1398,9 +1165,7 @@ local function handle_quick_switch(weapon_name)
     if should_switch then
         client.delay_call(0.02, function()
             client.exec("slot3")
-            client.delay_call(0.05, function()
-                client.exec("slot1")
-            end)
+            client.delay_call(0.05, function() client.exec("slot1") end)
         end)
     end
 end
@@ -1413,57 +1178,84 @@ local cjump_was_active = false
 local cjump_jumped = false
 
 -- ==========================================
+-- [ CUSTOM NETGRAPH ]
+-- ==========================================
+local function draw_netgraph()
+    if not ui.get(m.netgraph_enabled) then return end
+    
+    local sw, sh = client.screen_size()
+    local fps = math.floor(1 / globals.absoluteframetime())
+    local ping = math.floor(client.latency() * 1000)
+    local tickrate = math.floor(1 / globals.tickinterval())
+    
+    local sv = (globals.absoluteframetime() * 1000) + math.random(1, 3)/10
+    local var = math.random(1, 5) / 10
+    local up = tickrate
+    local cmd = tickrate
+    local loss = 0
+    local choke = 0
+    
+    local is_mini = ui.get(m.netgraph_size) == "Mini"
+    
+    -- Flag "b" para Bold (Gordinho) e "o" para Outline (Contorno Preto pra ficar BEM legível em fundos brancos)
+    local font_flag = (is_mini and "d" or "") .. "bo"
+    
+    local x_pct = ui.get(m.netgraph_x) / 100
+    local y_pct = ui.get(m.netgraph_y) / 100
+    
+    local x = math.floor(sw * x_pct)
+    local y = math.floor(sh * y_pct)
+    
+    local gap = is_mini and 10 or 14
+    local r, g, b, a = ui.get(m.netgraph_color)
+    
+    -- Coluna 1
+    renderer.text(x, y, r, g, b, a, font_flag, 0, string.format("fps: %3d", fps))
+    renderer.text(x, y + gap, r, g, b, a, font_flag, 0, string.format("loss: %2d%%", loss))
+    renderer.text(x, y + (gap*2), r, g, b, a, font_flag, 0, string.format("tick: %4.1f", tickrate))
+    
+    -- Coluna 2
+    local col2 = x + (is_mini and 45 or 65)
+    renderer.text(col2, y, r, g, b, a, font_flag, 0, string.format("ping: %d ms", ping))
+    renderer.text(col2, y + gap, r, g, b, a, font_flag, 0, string.format("choke: %2d%%", choke))
+    renderer.text(col2, y + (gap*2), r, g, b, a, font_flag, 0, string.format("sv: %4.1f + - %.1f ms", sv, var))
+
+    -- Coluna 3
+    local col3 = x + (is_mini and 130 or 180)
+    renderer.text(col3, y + gap, r, g, b, a, font_flag, 0, string.format("up: %4.1f/s", up))
+    renderer.text(col3, y + (gap*2), r, g, b, a, font_flag, 0, string.format("cmd: %4.1f/s", cmd))
+end
+
+-- ==========================================
 -- [ REGISTRO DE EVENTOS E SHUTDOWN ]
 -- ==========================================
 local function on_setup_command(cmd)
     handle_nade_dropper(cmd)
 
-    -- Lógica do Crouch Jump Assist da Train
-    if ui.get(crouch_jump_enabled) and globals.mapname() == "de_train" then
-        local active = ui.get(crouch_jump_hotkey)
+    if ui.get(m.crouch_jump_enabled) and globals.mapname() == "de_train" then
+        local active = ui.get(m.crouch_jump_hotkey)
         local on_press = active and not cjump_was_active
-
-        if on_press then
-            cjump_start_time = globals.realtime()
-            cjump_jumped = false
-        end
-
+        if on_press then cjump_start_time = globals.realtime(); cjump_jumped = false end
         cjump_was_active = active
 
         if cjump_start_time ~= nil then
             local elapsed = (globals.realtime() - cjump_start_time) * 1000
-
             cmd.in_duck = 1
-
-            if elapsed >= ui.get(crouch_jump_delay) and not cjump_jumped then
-                cmd.in_jump = 1
-                cjump_jumped = true
-            end
-
-            if elapsed >= ui.get(crouch_release_delay) then
-                cmd.in_duck = 0
-                cjump_start_time = nil
-            end
+            if elapsed >= ui.get(m.crouch_jump_delay) and not cjump_jumped then cmd.in_jump = 1; cjump_jumped = true end
+            if elapsed >= ui.get(m.crouch_release_delay) then cmd.in_duck = 0; cjump_start_time = nil end
         end
     end
 
     if retreat_data.is_retreating then
         local me = entity.get_local_player()
-        if not me or not entity.is_alive(me) then
-            retreat_data.is_retreating = false
-            return
-        end
+        if not me or not entity.is_alive(me) then retreat_data.is_retreating = false; return end
 
         local vx, vy, vz = entity.get_prop(me, "m_vecVelocity")
         local speed = math.sqrt(vx * vx + vy * vy)
         local time_passed = globals.realtime() - retreat_data.start_time
+        local qp_active = ui.get(refs.qpeek[1]) and ui.get(refs.qpeek[2])
 
-        local qp_active = ui.get(ref_qpeek[1]) and ui.get(ref_qpeek[2])
-
-        if not qp_active or (time_passed > 0.25 and speed < 25) then
-            client.exec("slot1")
-            retreat_data.is_retreating = false
-        end
+        if not qp_active or (time_passed > 0.25 and speed < 25) then client.exec("slot1"); retreat_data.is_retreating = false end
     end
 end
 
@@ -1472,7 +1264,6 @@ client.set_event_callback("paint", function()
     draw_manual_aa()
     draw_taser_warning()
     draw_range_rings()
-    
     update_clantag()
     draw_crosshair_hud()
     draw_slowdown_warning()
@@ -1480,22 +1271,18 @@ client.set_event_callback("paint", function()
     draw_screen_logs()
     draw_3d_hitmarkers()
     draw_watermark()
-    handle_camera_mods()
+    draw_netgraph()
 end)
 
 client.set_event_callback("weapon_fire", function(e)
     local me = entity.get_local_player()
     if client.userid_to_entindex(e.userid) == me then
         anim_data.dt_charge = 0
-
-        local qp_active = ui.get(ref_qpeek[1]) and ui.get(ref_qpeek[2])
-        if ui.get(knife_retreat_enabled) and qp_active then
+        local qp_active = ui.get(refs.qpeek[1]) and ui.get(refs.qpeek[2])
+        if ui.get(m.knife_retreat_enabled) and qp_active then
             retreat_data.is_retreating = true
             retreat_data.start_time = globals.realtime()
-
-            client.delay_call(0.02, function()
-                client.exec("slot3")
-            end)
+            client.delay_call(0.02, function() client.exec("slot3") end)
         else
             handle_quick_switch(e.weapon)
         end
@@ -1509,7 +1296,7 @@ client.set_event_callback("player_hurt", function(e)
     
     if attacker == me and victim ~= me then
         if e.health > 0 then
-            if ui.get(hitsound_enabled) then play_custom_sound("hit") end
+            if ui.get(m.hitsound_enabled) then play_custom_sound("hit") end
         end
     end
 end)
