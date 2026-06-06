@@ -1,4 +1,4 @@
--- Vitriol.lua by larihvh
+-- Vitriol.lua by larihvh (State-Based AA Update)
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
@@ -16,7 +16,9 @@ local refs = {
     ovr = get_refs("RAGE", "Aimbot", "Minimum damage override"),
     qpeek = get_refs("Rage", "Other", "Quick peek assist"),
     yaw_base = ui.reference("AA", "Anti-aimbot angles", "Yaw base"),
-    yaw_slider = select(2, ui.reference("AA", "Anti-aimbot angles", "Yaw"))
+    yaw_slider = select(2, ui.reference("AA", "Anti-aimbot angles", "Yaw")),
+    yaw_jitter = get_refs("AA", "Anti-aimbot angles", "Yaw jitter"),
+    body_yaw = get_refs("AA", "Anti-aimbot angles", "Body yaw")
 }
 
 -- ==========================================
@@ -61,6 +63,24 @@ m.clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "
 m.clantag_timezone = ui.new_combobox(TAB, CONTAINER, "Clock Timezone", { "Brasília", "Amazonas" })
 m.clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
 m.clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
+
+-- Advanced Anti-Aim Builder
+ui.new_label(TAB, CONTAINER, "--- Advanced Anti-Aim ---")
+m.aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable State-Based AA")
+m.aa_state_edit = ui.new_combobox(TAB, CONTAINER, "Edit State", { "Stand", "Move", "Air", "Crouch" })
+
+m.aa_settings = {}
+local aa_states = { "Stand", "Move", "Air", "Crouch" }
+for i=1, #aa_states do
+    local st = aa_states[i]
+    m.aa_settings[st] = {
+        yaw = ui.new_slider(TAB, CONTAINER, "["..st.."] Yaw Add", -180, 180, 0),
+        jitter_mode = ui.new_combobox(TAB, CONTAINER, "["..st.."] Jitter Mode", {"Off", "Offset", "Center", "Random"}),
+        jitter_range = ui.new_slider(TAB, CONTAINER, "["..st.."] Jitter Range", -180, 180, 0),
+        body_yaw = ui.new_combobox(TAB, CONTAINER, "["..st.."] Body Yaw", {"Off", "Opposite", "Jitter", "Static"}),
+        desync = ui.new_slider(TAB, CONTAINER, "["..st.."] Desync Limit", -60, 60, 60)
+    }
+end
 
 -- Crosshair Indicators
 ui.new_label(TAB, CONTAINER, "--- Indicators ---")
@@ -270,6 +290,20 @@ local function handle_menu()
     ui.set_visible(m.clantag_speed, c_state and c_type == "Animated")
     ui.set_visible(m.clantag_sync, c_state and c_type == "Animated")
 
+    -- Advanced AA Visibility
+    local aa_on = ui.get(m.aa_enabled)
+    local cur_edit = ui.get(m.aa_state_edit)
+    ui.set_visible(m.aa_state_edit, aa_on)
+    for i=1, #aa_states do
+        local st = aa_states[i]
+        local show = aa_on and (cur_edit == st)
+        ui.set_visible(m.aa_settings[st].yaw, show)
+        ui.set_visible(m.aa_settings[st].jitter_mode, show)
+        ui.set_visible(m.aa_settings[st].jitter_range, show)
+        ui.set_visible(m.aa_settings[st].body_yaw, show)
+        ui.set_visible(m.aa_settings[st].desync, show)
+    end
+
     local h_state = ui.get(m.hud_enabled)
     ui.set_visible(m.hud_style, h_state)
     ui.set_visible(m.hud_color, h_state)
@@ -345,7 +379,7 @@ local function handle_menu()
     ui.set_visible(m.quick_switch_select, qs_state)
 end
 
-local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled }
+local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, m.aa_state_edit }
 for i=1, #callbacks_list do
     ui.set_callback(callbacks_list[i], handle_menu)
 end
@@ -406,9 +440,13 @@ local function handle_manual_aa()
     end
 
     ui.set(refs.yaw_base, "Local view")
-    if manual_state == 0 then ui.set(refs.yaw_slider, 0)
-    elseif manual_state == 1 then ui.set(refs.yaw_slider, -90)
-    elseif manual_state == 2 then ui.set(refs.yaw_slider, 90) end
+    if manual_state == 1 then 
+        ui.set(refs.yaw_slider, -90)
+    elseif manual_state == 2 then 
+        ui.set(refs.yaw_slider, 90) 
+    elseif not ui.get(m.aa_enabled) then
+        ui.set(refs.yaw_slider, 0)
+    end
 end
 
 local function draw_manual_aa()
@@ -432,6 +470,46 @@ local function draw_manual_aa()
     renderer.triangle(cx + offset, cy, cx + offset - 10, cy - 5, cx + offset - 10, cy + 5, rr, rg, rb, ra)
     local br, bg, bb, ba = get_color(0)
     renderer.triangle(cx, cy + offset, cx - 5, cy + offset - 10, cx + 5, cy + offset - 10, br, bg, bb, ba)
+end
+
+-- ==========================================
+-- [ ADVANCED ANTI-AIM LOGIC ]
+-- ==========================================
+local math_sqrt = math.sqrt
+local bit_band = bit.band
+
+local function handle_advanced_aa()
+    if not ui.get(m.aa_enabled) then return end
+    
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+    
+    local flags = entity.get_prop(me, "m_fFlags")
+    local vx, vy = entity.get_prop(me, "m_vecVelocity")
+    local speed = math_sqrt(vx * vx + vy * vy)
+    local in_air = bit_band(flags, 1) == 0
+    local duck_amount = entity.get_prop(me, "m_flDuckAmount")
+    
+    local current_state = "Stand"
+    if in_air then 
+        current_state = "Air"
+    elseif duck_amount > 0.5 then 
+        current_state = "Crouch"
+    elseif speed > 5 then 
+        current_state = "Move" 
+    end
+    
+    local set = m.aa_settings[current_state]
+    
+    -- Aplica os angulos se nao estiver sob override do manual AA
+    if manual_state == 0 then
+        ui.set(refs.yaw_slider, ui.get(set.yaw))
+    end
+    
+    ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
+    ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
+    ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
+    ui.set(refs.body_yaw[2], ui.get(set.desync))
 end
 
 -- ==========================================
@@ -716,8 +794,6 @@ end
 -- ==========================================
 local anim_data = { dt = 0, dt_charge = 1.0, hs = 0, fs = 0, fd = 0, baim = 0, sp = 0 }
 local dmg_anim = { val = 0, r = 220, g = 180, b = 255 }
-local bit_band = bit.band
-local math_sqrt = math.sqrt
 
 local function draw_slowdown_warning()
     if not ui.get(m.slowdown_enabled) then return end
@@ -1171,13 +1247,6 @@ local function handle_quick_switch(weapon_name)
 end
 
 -- ==========================================
--- [ TRAIN CROUCH JUMP VARS ]
--- ==========================================
-local cjump_start_time = nil
-local cjump_was_active = false
-local cjump_jumped = false
-
--- ==========================================
 -- [ CUSTOM NETGRAPH ]
 -- ==========================================
 local function draw_netgraph()
@@ -1196,8 +1265,6 @@ local function draw_netgraph()
     local choke = 0
     
     local is_mini = ui.get(m.netgraph_size) == "Mini"
-    
-    -- Flag "b" para Bold (Gordinho) e "o" para Outline (Contorno Preto pra ficar BEM legível em fundos brancos)
     local font_flag = (is_mini and "d" or "") .. "bo"
     
     local x_pct = ui.get(m.netgraph_x) / 100
@@ -1209,18 +1276,15 @@ local function draw_netgraph()
     local gap = is_mini and 10 or 14
     local r, g, b, a = ui.get(m.netgraph_color)
     
-    -- Coluna 1
     renderer.text(x, y, r, g, b, a, font_flag, 0, string.format("fps: %3d", fps))
     renderer.text(x, y + gap, r, g, b, a, font_flag, 0, string.format("loss: %2d%%", loss))
     renderer.text(x, y + (gap*2), r, g, b, a, font_flag, 0, string.format("tick: %4.1f", tickrate))
     
-    -- Coluna 2
     local col2 = x + (is_mini and 45 or 65)
     renderer.text(col2, y, r, g, b, a, font_flag, 0, string.format("ping: %d ms", ping))
     renderer.text(col2, y + gap, r, g, b, a, font_flag, 0, string.format("choke: %2d%%", choke))
     renderer.text(col2, y + (gap*2), r, g, b, a, font_flag, 0, string.format("sv: %4.1f + - %.1f ms", sv, var))
 
-    -- Coluna 3
     local col3 = x + (is_mini and 130 or 180)
     renderer.text(col3, y + gap, r, g, b, a, font_flag, 0, string.format("up: %4.1f/s", up))
     renderer.text(col3, y + (gap*2), r, g, b, a, font_flag, 0, string.format("cmd: %4.1f/s", cmd))
@@ -1229,6 +1293,10 @@ end
 -- ==========================================
 -- [ REGISTRO DE EVENTOS E SHUTDOWN ]
 -- ==========================================
+local cjump_start_time = nil
+local cjump_was_active = false
+local cjump_jumped = false
+
 local function on_setup_command(cmd)
     handle_nade_dropper(cmd)
 
@@ -1251,11 +1319,43 @@ local function on_setup_command(cmd)
         if not me or not entity.is_alive(me) then retreat_data.is_retreating = false; return end
 
         local vx, vy, vz = entity.get_prop(me, "m_vecVelocity")
-        local speed = math.sqrt(vx * vx + vy * vy)
+        local speed = math_sqrt(vx * vx + vy * vy)
         local time_passed = globals.realtime() - retreat_data.start_time
         local qp_active = ui.get(refs.qpeek[1]) and ui.get(refs.qpeek[2])
 
         if not qp_active or (time_passed > 0.25 and speed < 25) then client.exec("slot1"); retreat_data.is_retreating = false end
+    end
+    
+    -- Advanced State-Based AA Execution
+    if ui.get(m.aa_enabled) then
+        local me = entity.get_local_player()
+        if me and entity.is_alive(me) then
+            local flags = entity.get_prop(me, "m_fFlags")
+            local vx, vy = entity.get_prop(me, "m_vecVelocity")
+            local speed = math_sqrt(vx * vx + vy * vy)
+            local in_air = bit_band(flags, 1) == 0
+            local duck_amount = entity.get_prop(me, "m_flDuckAmount")
+            
+            local current_state = "Stand"
+            if in_air then 
+                current_state = "Air"
+            elseif duck_amount > 0.5 then 
+                current_state = "Crouch"
+            elseif speed > 5 then 
+                current_state = "Move" 
+            end
+            
+            local set = m.aa_settings[current_state]
+            
+            if manual_state == 0 then
+                ui.set(refs.yaw_slider, ui.get(set.yaw))
+            end
+            
+            ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
+            ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
+            ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
+            ui.set(refs.body_yaw[2], ui.get(set.desync))
+        end
     end
 end
 
