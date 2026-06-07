@@ -1,4 +1,4 @@
--- Vitriol.lua by larihvh (State-Based AA + Exploits Update)
+-- Vitriol.lua by larihvh
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
@@ -22,7 +22,8 @@ local refs = {
     fl_enabled = ui.reference("AA", "Fake lag", "Enabled"),
     fl_amount = ui.reference("AA", "Fake lag", "Amount"),
     fl_variance = ui.reference("AA", "Fake lag", "Variance"),
-    fl_limit = ui.reference("AA", "Fake lag", "Limit")
+    fl_limit = ui.reference("AA", "Fake lag", "Limit"),
+    slow_motion = ui.reference("AA", "Other", "Slow motion")
 }
 
 -- ==========================================
@@ -73,6 +74,10 @@ ui.new_label(TAB, CONTAINER, "--- Advanced Anti-Aim ---")
 m.aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable State-Based AA & FL")
 m.anti_brute = ui.new_checkbox(TAB, CONTAINER, "Enable Anti-Bruteforce (Auto-Flip)")
 m.lc_breaker = ui.new_checkbox(TAB, CONTAINER, "Enable LC Breaker")
+m.lby_breaker = ui.new_checkbox(TAB, CONTAINER, "Enable LBY Breaker")
+m.reaction_fd = ui.new_checkbox(TAB, CONTAINER, "Enable Reactionary Fake Duck")
+m.pitch_exploit = ui.new_checkbox(TAB, CONTAINER, "Enable Pitch Exploit (Untrusted)")
+m.slow_walk_jitter = ui.new_checkbox(TAB, CONTAINER, "Enable Slow Walk Jitter")
 
 m.aa_state_edit = ui.new_combobox(TAB, CONTAINER, "Edit State", { "Stand", "Move", "Air", "Crouch" })
 
@@ -303,8 +308,13 @@ local function handle_menu()
     -- Advanced AA Visibility
     local aa_on = ui.get(m.aa_enabled)
     local cur_edit = ui.get(m.aa_state_edit)
+    
     ui.set_visible(m.anti_brute, aa_on)
     ui.set_visible(m.lc_breaker, aa_on)
+    ui.set_visible(m.lby_breaker, aa_on)
+    ui.set_visible(m.reaction_fd, aa_on)
+    ui.set_visible(m.pitch_exploit, aa_on)
+    ui.set_visible(m.slow_walk_jitter, aa_on)
     ui.set_visible(m.aa_state_edit, aa_on)
 
     for i=1, #aa_states do
@@ -395,7 +405,7 @@ local function handle_menu()
     ui.set_visible(m.quick_switch_select, qs_state)
 end
 
-local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, m.aa_state_edit }
+local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, m.aa_state_edit, m.lby_breaker, m.pitch_exploit, m.reaction_fd, m.slow_walk_jitter }
 for i=1, #callbacks_list do
     ui.set_callback(callbacks_list[i], handle_menu)
 end
@@ -489,14 +499,15 @@ local function draw_manual_aa()
 end
 
 -- ==========================================
--- [ EXPLOITS: ANTI-BRUTEFORCE & LC BREAKER ]
+-- [ EXPLOITS: ANTI-BRUTEFORCE & REACTION FD ]
 -- ==========================================
 local bruteforce_flip = false
+local force_duck_ticks = 0
 local math_sqrt = math.sqrt
 local bit_band = bit.band
 
 client.set_event_callback("bullet_impact", function(e)
-    if not ui.get(m.aa_enabled) or not ui.get(m.anti_brute) then return end
+    if not ui.get(m.aa_enabled) then return end
     
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
@@ -526,10 +537,20 @@ client.set_event_callback("bullet_impact", function(e)
         local px, py, pz = sx + dx*dot, sy + dy*dot, sz + dz*dot
         local dist = math_sqrt((px-hx)^2 + (py-hy)^2 + (pz-hz)^2)
         
+        -- Detected bullet passing close to head
         if dist < 60 then
-            bruteforce_flip = not bruteforce_flip
-            if ui.get(m.logs_enabled) then
-                client.color_log(255, 105, 180, "[Vitriol.lua] Anti-Bruteforce: Miss detected! Flipped Desync.")
+            -- Anti-Bruteforce Logic
+            if ui.get(m.anti_brute) then 
+                bruteforce_flip = not bruteforce_flip 
+            end
+            
+            -- Reactionary Fake Duck Logic
+            if ui.get(m.reaction_fd) then
+                force_duck_ticks = 3
+            end
+            
+            if ui.get(m.logs_enabled) and (ui.get(m.anti_brute) or ui.get(m.reaction_fd)) then
+                client.color_log(255, 105, 180, "[Vitriol.lua] Evasion Triggered! (Miss detected near head)")
             end
         end
     end
@@ -538,12 +559,38 @@ end)
 -- ==========================================
 -- [ ADVANCED ANTI-AIM LOGIC ]
 -- ==========================================
+local slow_walk_tick = 0
+
 local function handle_advanced_aa(cmd)
     if not ui.get(m.aa_enabled) then return end
     
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     
+    -- Exploit 1: Slow Walk Jitter
+    if ui.get(m.slow_walk_jitter) and ui.get(refs.slow_motion) then
+        slow_walk_tick = slow_walk_tick + 1
+        if slow_walk_tick % 2 == 0 then
+            cmd.forwardmove = cmd.forwardmove * 0.7
+            cmd.sidemove = cmd.sidemove * 0.7
+        else
+            cmd.forwardmove = cmd.forwardmove * 1.2
+        end
+    end
+
+    -- Exploit 2: Reactionary Fake Duck
+    if force_duck_ticks > 0 then
+        cmd.in_duck = 1
+        force_duck_ticks = force_duck_ticks - 1
+    end
+
+    -- Exploit 4: Pitch Manipulation
+    if ui.get(m.pitch_exploit) then
+        -- Randomize pitch between 86.0 and 89.0 (Untrusted angle jitter)
+        cmd.pitch = 89.0 - (math.random(0, 30) / 10.0)
+    end
+
+    -- Base State Calculations
     local flags = entity.get_prop(me, "m_fFlags")
     local vx, vy = entity.get_prop(me, "m_vecVelocity")
     local speed = math_sqrt(vx * vx + vy * vy)
@@ -567,7 +614,13 @@ local function handle_advanced_aa(cmd)
     
     ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
     ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
-    ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
+
+    -- Exploit 3: LBY Breaker (Integrated directly into Body Yaw)
+    local target_body_yaw = ui.get(set.body_yaw)
+    if ui.get(m.lby_breaker) then
+        target_body_yaw = (cmd.command_number % 3 == 0) and "Opposite" or "Jitter"
+    end
+    ui.set(refs.body_yaw[1], target_body_yaw)
     
     local target_desync = ui.get(set.desync)
     if bruteforce_flip then target_desync = -target_desync end
@@ -576,6 +629,7 @@ local function handle_advanced_aa(cmd)
     ui.set(refs.fl_amount, ui.get(set.fl_amount))
     ui.set(refs.fl_variance, ui.get(set.fl_variance))
     
+    -- LC Breaker Logic
     local final_limit = ui.get(set.fl_limit)
     if ui.get(m.lc_breaker) and current_state == "Move" then
         if cmd.command_number % 3 == 0 then
@@ -1376,6 +1430,29 @@ local function handle_advanced_aa(cmd)
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     
+    -- Exploit 1: Slow Walk Jitter
+    if ui.get(m.slow_walk_jitter) and ui.get(refs.slow_motion) then
+        slow_walk_tick = slow_walk_tick + 1
+        if slow_walk_tick % 2 == 0 then
+            cmd.forwardmove = cmd.forwardmove * 0.7
+            cmd.sidemove = cmd.sidemove * 0.7
+        else
+            cmd.forwardmove = cmd.forwardmove * 1.2
+        end
+    end
+
+    -- Exploit 2: Reactionary Fake Duck
+    if force_duck_ticks > 0 then
+        cmd.in_duck = 1
+        force_duck_ticks = force_duck_ticks - 1
+    end
+
+    -- Exploit 4: Pitch Manipulation
+    if ui.get(m.pitch_exploit) then
+        cmd.pitch = 89.0 - (math.random(0, 30) / 10.0)
+    end
+
+    -- Base State Calculations
     local flags = entity.get_prop(me, "m_fFlags")
     local vx, vy = entity.get_prop(me, "m_vecVelocity")
     local speed = math_sqrt(vx * vx + vy * vy)
@@ -1393,21 +1470,24 @@ local function handle_advanced_aa(cmd)
     
     local set = m.aa_settings[current_state]
     
-    -- Sync Angles
     if manual_state == 0 then
         ui.set(refs.yaw_slider, ui.get(set.yaw))
     end
     
     ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
     ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
-    ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
+
+    -- Exploit 3: LBY Breaker Integrado ao Body Yaw
+    local target_body_yaw = ui.get(set.body_yaw)
+    if ui.get(m.lby_breaker) then
+        target_body_yaw = (cmd.command_number % 3 == 0) and "Opposite" or "Jitter"
+    end
+    ui.set(refs.body_yaw[1], target_body_yaw)
     
-    -- Apply Bruteforce Flip
     local target_desync = ui.get(set.desync)
     if bruteforce_flip then target_desync = -target_desync end
     ui.set(refs.body_yaw[2], target_desync)
     
-    -- Sync Fake Lag
     ui.set(refs.fl_amount, ui.get(set.fl_amount))
     ui.set(refs.fl_variance, ui.get(set.fl_variance))
     
