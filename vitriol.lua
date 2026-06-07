@@ -1,4 +1,4 @@
--- Vitriol.lua by larihvh (State-Based AA Update)
+-- Vitriol.lua by larihvh (State-Based AA + Exploits Update)
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
@@ -18,7 +18,11 @@ local refs = {
     yaw_base = ui.reference("AA", "Anti-aimbot angles", "Yaw base"),
     yaw_slider = select(2, ui.reference("AA", "Anti-aimbot angles", "Yaw")),
     yaw_jitter = get_refs("AA", "Anti-aimbot angles", "Yaw jitter"),
-    body_yaw = get_refs("AA", "Anti-aimbot angles", "Body yaw")
+    body_yaw = get_refs("AA", "Anti-aimbot angles", "Body yaw"),
+    fl_enabled = ui.reference("AA", "Fake lag", "Enabled"),
+    fl_amount = ui.reference("AA", "Fake lag", "Amount"),
+    fl_variance = ui.reference("AA", "Fake lag", "Variance"),
+    fl_limit = ui.reference("AA", "Fake lag", "Limit")
 }
 
 -- ==========================================
@@ -66,7 +70,10 @@ m.clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
 
 -- Advanced Anti-Aim Builder
 ui.new_label(TAB, CONTAINER, "--- Advanced Anti-Aim ---")
-m.aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable State-Based AA")
+m.aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable State-Based AA & FL")
+m.anti_brute = ui.new_checkbox(TAB, CONTAINER, "Enable Anti-Bruteforce (Auto-Flip)")
+m.lc_breaker = ui.new_checkbox(TAB, CONTAINER, "Enable LC Breaker")
+
 m.aa_state_edit = ui.new_combobox(TAB, CONTAINER, "Edit State", { "Stand", "Move", "Air", "Crouch" })
 
 m.aa_settings = {}
@@ -78,7 +85,10 @@ for i=1, #aa_states do
         jitter_mode = ui.new_combobox(TAB, CONTAINER, "["..st.."] Jitter Mode", {"Off", "Offset", "Center", "Random"}),
         jitter_range = ui.new_slider(TAB, CONTAINER, "["..st.."] Jitter Range", -180, 180, 0),
         body_yaw = ui.new_combobox(TAB, CONTAINER, "["..st.."] Body Yaw", {"Off", "Opposite", "Jitter", "Static"}),
-        desync = ui.new_slider(TAB, CONTAINER, "["..st.."] Desync Limit", -60, 60, 60)
+        desync = ui.new_slider(TAB, CONTAINER, "["..st.."] Desync Limit", -60, 60, 60),
+        fl_limit = ui.new_slider(TAB, CONTAINER, "["..st.."] Fake Lag Limit", 1, 15, 14),
+        fl_amount = ui.new_combobox(TAB, CONTAINER, "["..st.."] Fake Lag Amount", {"Dynamic", "Maximum", "Fluctuate"}),
+        fl_variance = ui.new_slider(TAB, CONTAINER, "["..st.."] Fake Lag Variance", 0, 100, 0)
     }
 end
 
@@ -293,7 +303,10 @@ local function handle_menu()
     -- Advanced AA Visibility
     local aa_on = ui.get(m.aa_enabled)
     local cur_edit = ui.get(m.aa_state_edit)
+    ui.set_visible(m.anti_brute, aa_on)
+    ui.set_visible(m.lc_breaker, aa_on)
     ui.set_visible(m.aa_state_edit, aa_on)
+
     for i=1, #aa_states do
         local st = aa_states[i]
         local show = aa_on and (cur_edit == st)
@@ -302,6 +315,9 @@ local function handle_menu()
         ui.set_visible(m.aa_settings[st].jitter_range, show)
         ui.set_visible(m.aa_settings[st].body_yaw, show)
         ui.set_visible(m.aa_settings[st].desync, show)
+        ui.set_visible(m.aa_settings[st].fl_limit, show)
+        ui.set_visible(m.aa_settings[st].fl_amount, show)
+        ui.set_visible(m.aa_settings[st].fl_variance, show)
     end
 
     local h_state = ui.get(m.hud_enabled)
@@ -473,12 +489,56 @@ local function draw_manual_aa()
 end
 
 -- ==========================================
--- [ ADVANCED ANTI-AIM LOGIC ]
+-- [ EXPLOITS: ANTI-BRUTEFORCE & LC BREAKER ]
 -- ==========================================
+local bruteforce_flip = false
 local math_sqrt = math.sqrt
 local bit_band = bit.band
 
-local function handle_advanced_aa()
+client.set_event_callback("bullet_impact", function(e)
+    if not ui.get(m.aa_enabled) or not ui.get(m.anti_brute) then return end
+    
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+    
+    local shooter = client.userid_to_entindex(e.userid)
+    if shooter == me or not entity.is_enemy(shooter) then return end
+
+    local ex, ey, ez = entity.get_prop(shooter, "m_vecOrigin")
+    local ex_v, ey_v, ez_v = entity.get_prop(shooter, "m_vecViewOffset")
+    if not ex or not ex_v then return end
+    local sx, sy, sz = ex + ex_v, ey + ey_v, ez + ez_v
+
+    local lx, ly, lz = entity.get_prop(me, "m_vecOrigin")
+    local l_vx, l_vy, l_vz = entity.get_prop(me, "m_vecViewOffset")
+    if not lx or not l_vx then return end
+    local hx, hy, hz = lx + l_vx, ly + l_vy, lz + l_vz
+
+    local dx, dy, dz = e.x - sx, e.y - sy, e.z - sz
+    local len = math_sqrt(dx*dx + dy*dy + dz*dz)
+    if len == 0 then return end
+    dx, dy, dz = dx/len, dy/len, dz/len
+
+    local vx, vy, vz = hx - sx, hy - sy, hz - sz
+    local dot = vx*dx + vy*dy + vz*dz
+
+    if dot > 0 then
+        local px, py, pz = sx + dx*dot, sy + dy*dot, sz + dz*dot
+        local dist = math_sqrt((px-hx)^2 + (py-hy)^2 + (pz-hz)^2)
+        
+        if dist < 60 then
+            bruteforce_flip = not bruteforce_flip
+            if ui.get(m.logs_enabled) then
+                client.color_log(255, 105, 180, "[Vitriol.lua] Anti-Bruteforce: Miss detected! Flipped Desync.")
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- [ ADVANCED ANTI-AIM LOGIC ]
+-- ==========================================
+local function handle_advanced_aa(cmd)
     if not ui.get(m.aa_enabled) then return end
     
     local me = entity.get_local_player()
@@ -501,7 +561,6 @@ local function handle_advanced_aa()
     
     local set = m.aa_settings[current_state]
     
-    -- Aplica os angulos se nao estiver sob override do manual AA
     if manual_state == 0 then
         ui.set(refs.yaw_slider, ui.get(set.yaw))
     end
@@ -509,7 +568,21 @@ local function handle_advanced_aa()
     ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
     ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
     ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
-    ui.set(refs.body_yaw[2], ui.get(set.desync))
+    
+    local target_desync = ui.get(set.desync)
+    if bruteforce_flip then target_desync = -target_desync end
+    ui.set(refs.body_yaw[2], target_desync)
+    
+    ui.set(refs.fl_amount, ui.get(set.fl_amount))
+    ui.set(refs.fl_variance, ui.get(set.fl_variance))
+    
+    local final_limit = ui.get(set.fl_limit)
+    if ui.get(m.lc_breaker) and current_state == "Move" then
+        if cmd.command_number % 3 == 0 then
+            final_limit = math.max(1, final_limit - math.random(3, 7))
+        end
+    end
+    ui.set(refs.fl_limit, final_limit)
 end
 
 -- ==========================================
@@ -1297,6 +1370,57 @@ local cjump_start_time = nil
 local cjump_was_active = false
 local cjump_jumped = false
 
+local function handle_advanced_aa(cmd)
+    if not ui.get(m.aa_enabled) then return end
+    
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+    
+    local flags = entity.get_prop(me, "m_fFlags")
+    local vx, vy = entity.get_prop(me, "m_vecVelocity")
+    local speed = math_sqrt(vx * vx + vy * vy)
+    local in_air = bit_band(flags, 1) == 0
+    local duck_amount = entity.get_prop(me, "m_flDuckAmount")
+    
+    local current_state = "Stand"
+    if in_air then 
+        current_state = "Air"
+    elseif duck_amount > 0.5 then 
+        current_state = "Crouch"
+    elseif speed > 5 then 
+        current_state = "Move" 
+    end
+    
+    local set = m.aa_settings[current_state]
+    
+    -- Sync Angles
+    if manual_state == 0 then
+        ui.set(refs.yaw_slider, ui.get(set.yaw))
+    end
+    
+    ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
+    ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
+    ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
+    
+    -- Apply Bruteforce Flip
+    local target_desync = ui.get(set.desync)
+    if bruteforce_flip then target_desync = -target_desync end
+    ui.set(refs.body_yaw[2], target_desync)
+    
+    -- Sync Fake Lag
+    ui.set(refs.fl_amount, ui.get(set.fl_amount))
+    ui.set(refs.fl_variance, ui.get(set.fl_variance))
+    
+    -- LC Breaker Logic
+    local final_limit = ui.get(set.fl_limit)
+    if ui.get(m.lc_breaker) and current_state == "Move" then
+        if cmd.command_number % 3 == 0 then
+            final_limit = math.max(1, final_limit - math.random(3, 7))
+        end
+    end
+    ui.set(refs.fl_limit, final_limit)
+end
+
 local function on_setup_command(cmd)
     handle_nade_dropper(cmd)
 
@@ -1326,37 +1450,7 @@ local function on_setup_command(cmd)
         if not qp_active or (time_passed > 0.25 and speed < 25) then client.exec("slot1"); retreat_data.is_retreating = false end
     end
     
-    -- Advanced State-Based AA Execution
-    if ui.get(m.aa_enabled) then
-        local me = entity.get_local_player()
-        if me and entity.is_alive(me) then
-            local flags = entity.get_prop(me, "m_fFlags")
-            local vx, vy = entity.get_prop(me, "m_vecVelocity")
-            local speed = math_sqrt(vx * vx + vy * vy)
-            local in_air = bit_band(flags, 1) == 0
-            local duck_amount = entity.get_prop(me, "m_flDuckAmount")
-            
-            local current_state = "Stand"
-            if in_air then 
-                current_state = "Air"
-            elseif duck_amount > 0.5 then 
-                current_state = "Crouch"
-            elseif speed > 5 then 
-                current_state = "Move" 
-            end
-            
-            local set = m.aa_settings[current_state]
-            
-            if manual_state == 0 then
-                ui.set(refs.yaw_slider, ui.get(set.yaw))
-            end
-            
-            ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
-            ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
-            ui.set(refs.body_yaw[1], ui.get(set.body_yaw))
-            ui.set(refs.body_yaw[2], ui.get(set.desync))
-        end
-    end
+    handle_advanced_aa(cmd)
 end
 
 client.set_event_callback("paint", function()
