@@ -1,4 +1,4 @@
--- Vitriol.lua by larihvh
+-- Vitriol.lua by larihvh (Smart Aimbot Update - No External Libs & Crash Fix)
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
@@ -26,6 +26,14 @@ local refs = {
     slow_motion = ui.reference("AA", "Other", "Slow motion"),
     tp = ui.reference("VISUALS", "Effects", "Force third person (alive)")
 }
+
+-- Referências Nativas do Player List (Protegidas com pcall contra crashes)
+local ref_plist, ref_plist_baim, ref_plist_sp
+pcall(function()
+    ref_plist = ui.reference("PLAYERS", "Players", "Player list")
+    ref_plist_baim = ui.reference("PLAYERS", "Adjustments", "Force body aim")
+    ref_plist_sp = ui.reference("PLAYERS", "Adjustments", "Force safe point")
+end)
 
 -- ==========================================
 -- [ FFI - SPARKLES & SAFE AUDIO ]
@@ -97,6 +105,14 @@ for i=1, #aa_states do
         fl_variance = ui.new_slider(TAB, CONTAINER, "["..st.."] Fake Lag Variance", 0, 100, 0)
     }
 end
+
+-- Smart Aimbot Helper
+ui.new_label(TAB, CONTAINER, "--- Smart Aimbot ---")
+m.smart_aim_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Smart Aimbot Helper")
+m.smart_aim_baim_lethal = ui.new_checkbox(TAB, CONTAINER, "Force Baim on Lethal")
+m.smart_aim_baim_hp = ui.new_slider(TAB, CONTAINER, "Force Baim if HP <=", 0, 100, 0)
+m.smart_aim_baim_misses = ui.new_slider(TAB, CONTAINER, "Force Baim after X Misses", 0, 10, 0)
+m.smart_aim_sp_misses = ui.new_slider(TAB, CONTAINER, "Force Safepoint after X Misses", 0, 10, 0)
 
 -- Crosshair Indicators
 ui.new_label(TAB, CONTAINER, "--- Indicators ---")
@@ -205,7 +221,6 @@ m.knife_retreat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Knife Retreat 
 m.sync_hotkeys_enabled = ui.new_checkbox(TAB, CONTAINER, "Sync Ragebot Hotkeys")
 
 ui.new_label(TAB, CONTAINER, "=========================")
-
 
 -- ==========================================
 -- [ CAMERA & VIEWMODEL LOGIC ]
@@ -339,6 +354,12 @@ local function handle_menu()
         ui.set_visible(m.aa_settings[st].fl_variance, show)
     end
 
+    local sa_state = ui.get(m.smart_aim_enabled)
+    ui.set_visible(m.smart_aim_baim_lethal, sa_state)
+    ui.set_visible(m.smart_aim_baim_hp, sa_state)
+    ui.set_visible(m.smart_aim_baim_misses, sa_state)
+    ui.set_visible(m.smart_aim_sp_misses, sa_state)
+
     local h_state = ui.get(m.hud_enabled)
     ui.set_visible(m.hud_style, h_state)
     ui.set_visible(m.hud_color, h_state)
@@ -419,7 +440,16 @@ local function handle_menu()
     ui.set_visible(m.quick_switch_select, qs_state)
 end
 
-local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, m.aa_state_edit, m.lby_breaker, m.pitch_exploit, m.reaction_fd, m.slow_walk_jitter, m.chinahat_enabled, m.trails_enabled }
+local callbacks_list = { 
+    m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, 
+    m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, 
+    m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, 
+    m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, 
+    m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, 
+    m.aa_state_edit, m.lby_breaker, m.pitch_exploit, m.reaction_fd, m.slow_walk_jitter, 
+    m.chinahat_enabled, m.trails_enabled, m.smart_aim_enabled 
+}
+
 for i=1, #callbacks_list do
     ui.set_callback(callbacks_list[i], handle_menu)
 end
@@ -462,8 +492,6 @@ local trail_positions = {}
 
 local function draw_chinahat()
     if not ui.get(m.chinahat_enabled) then return end
-    
-    -- Only draw if forcing thirdperson
     if not ui.get(refs.tp) then return end 
 
     local me = entity.get_local_player()
@@ -473,7 +501,6 @@ local function draw_chinahat()
     local ox, oy, oz = entity.get_prop(me, "m_vecOrigin")
     local duck_amount = entity.get_prop(me, "m_flDuckAmount") or 0
     
-    -- Dynamic height calculation so it stays on head when crouching
     oz = oz + 68 - (duck_amount * 18)
 
     local tip_x, tip_y, tip_z = ox, oy, oz + 12
@@ -494,11 +521,8 @@ local function draw_chinahat()
 
     for i = 1, #points - 1 do
         if points[i][1] and points[i+1][1] then
-            -- Base ring
             renderer.line(points[i][1], points[i][2], points[i+1][1], points[i+1][2], r, g, b, a)
-            -- Triangle from tip to base
             renderer.triangle(points[i][1], points[i][2], points[i+1][1], points[i+1][2], tip_sx, tip_sy, r, g, b, math.floor(a * 0.4))
-            -- Skeleton lines
             renderer.line(points[i][1], points[i][2], tip_sx, tip_sy, r, g, b, math.floor(a * 0.7))
         end
     end
@@ -543,7 +567,6 @@ local function draw_trails()
             local current_alpha = math.floor(a * (1 - (i / #trail_positions)))
             renderer.line(s1x, s1y, s2x, s2y, r, g, b, current_alpha)
             
-            -- Small 3D extrusion effect for the trail
             local s1x_up, s1y_up = renderer.world_to_screen(p1.x, p1.y, p1.z + 8)
             local s2x_up, s2y_up = renderer.world_to_screen(p2.x, p2.y, p2.z + 8)
             if s1x_up and s2x_up then
@@ -612,16 +635,90 @@ local function draw_manual_aa()
 end
 
 -- ==========================================
--- [ EXPLOITS: ANTI-BRUTEFORCE & REACTION FD ]
+-- [ EXPLOITS & SMART AIMBOT LOGIC ]
 -- ==========================================
 local bruteforce_flip = false
 local force_duck_ticks = 0
 local math_sqrt = math.sqrt
 local bit_band = bit.band
+local enemy_misses = {}
+local plist_cache = {}
+
+local function handle_smart_aimbot()
+    if not ui.get(m.smart_aim_enabled) then return end
+    
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+    
+    local enemies = entity.get_players(true)
+    local wpn = entity.get_player_weapon(me)
+    if not wpn then return end
+    
+    local idx = bit_band(entity.get_prop(wpn, "m_iItemDefinitionIndex") or 0, 0xFFFF)
+    local lethal_dmg = 100
+    
+    if idx == 40 then lethal_dmg = 74 -- Scout
+    elseif idx == 9 then lethal_dmg = 115 -- AWP
+    elseif idx == 38 or idx == 11 then lethal_dmg = 40 -- SCAR-20 / G3SG1
+    elseif idx == 64 then lethal_dmg = 86 -- Revolver
+    elseif idx == 1 then lethal_dmg = 46 -- Deagle
+    end
+    
+    local orig_player = ref_plist and ui.get(ref_plist) or nil
+    local ui_changed = false
+    
+    for i=1, #enemies do
+        local ent = enemies[i]
+        local hp = entity.get_prop(ent, "m_iHealth") or 100
+        local misses = enemy_misses[ent] or 0
+        
+        local force_baim = false
+        local force_sp = false
+        
+        if ui.get(m.smart_aim_baim_lethal) and hp <= lethal_dmg then force_baim = true end
+        if ui.get(m.smart_aim_baim_hp) > 0 and hp <= ui.get(m.smart_aim_baim_hp) then force_baim = true end
+        
+        local baim_max = ui.get(m.smart_aim_baim_misses)
+        if baim_max > 0 and misses >= baim_max then force_baim = true end
+        
+        local sp_max = ui.get(m.smart_aim_sp_misses)
+        if sp_max > 0 and misses >= sp_max then force_sp = true end
+        
+        -- Checa se o client tem a tabela plist nativa
+        if type(plist) == "table" and plist.set then
+            pcall(function() plist.set(ent, "Force body aim", force_baim) end)
+            pcall(function() plist.set(ent, "Force safe point", force_sp) end)
+            
+        -- Caso contrário (builds antigas), tenta usar as refs do menu
+        elseif ref_plist and ref_plist_baim and ref_plist_sp then
+            if not plist_cache[ent] then plist_cache[ent] = { baim = nil, sp = nil } end
+            local cache = plist_cache[ent]
+            
+            if cache.baim ~= force_baim or cache.sp ~= force_sp then
+                ui.set(ref_plist, ent)
+                
+                if cache.baim ~= force_baim then
+                    ui.set(ref_plist_baim, force_baim and "On" or "-")
+                    cache.baim = force_baim
+                end
+                
+                if cache.sp ~= force_sp then
+                    ui.set(ref_plist_sp, force_sp and "On" or "-")
+                    cache.sp = force_sp
+                end
+                
+                ui_changed = true
+            end
+        end
+    end
+    
+    if ui_changed and ref_plist and orig_player then
+        ui.set(ref_plist, orig_player)
+    end
+end
 
 client.set_event_callback("bullet_impact", function(e)
     if not ui.get(m.aa_enabled) then return end
-    
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     
@@ -654,11 +751,9 @@ client.set_event_callback("bullet_impact", function(e)
             if ui.get(m.anti_brute) then 
                 bruteforce_flip = not bruteforce_flip 
             end
-            
             if ui.get(m.reaction_fd) then
                 force_duck_ticks = 3
             end
-            
             if ui.get(m.logs_enabled) and (ui.get(m.anti_brute) or ui.get(m.reaction_fd)) then
                 client.color_log(255, 105, 180, "[Vitriol.lua] Evasion Triggered! (Miss detected near head)")
             end
@@ -673,7 +768,6 @@ local slow_walk_tick = 0
 
 local function handle_advanced_aa(cmd)
     if not ui.get(m.aa_enabled) then return end
-    
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     
@@ -712,10 +806,7 @@ local function handle_advanced_aa(cmd)
     end
     
     local set = m.aa_settings[current_state]
-    
-    if manual_state == 0 then
-        ui.set(refs.yaw_slider, ui.get(set.yaw))
-    end
+    if manual_state == 0 then ui.set(refs.yaw_slider, ui.get(set.yaw)) end
     
     ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
     ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
@@ -1270,6 +1361,7 @@ local function on_aim_fire(e)
 end
 
 local function on_aim_hit(e)
+    enemy_misses[e.target] = 0
     local data = aim_data[e.id]
     if not data then return end
 
@@ -1286,6 +1378,10 @@ local function on_aim_hit(e)
 end
 
 local function on_aim_miss(e)
+    if e.reason ~= "spread" then
+        enemy_misses[e.target] = (enemy_misses[e.target] or 0) + 1
+    end
+
     if not ui.get(m.logs_enabled) then return end
     local data = aim_data[e.id]
     if not data then return end
@@ -1436,6 +1532,7 @@ end)
 local buy_cmds = { ["Auto"] = "scar20", ["Scout"] = "ssg08", ["Awp"] = "awp", ["Primary rifle"] = "ak47", ["Scoped rifle"] = "sg556", ["Machine gun"] = "negev", ["Default pistol"] = "glock", ["P250"] = "p250", ["Dual Berettas"] = "elite", ["Light pistol"] = "tec9", ["Heavy pistol"] = "deagle", ["Grenade"] = "hegrenade", ["Smoke"] = "smokegrenade", ["Incendiary"] = "molotov", ["Flashbang"] = "flashbang", ["Kevlar + Helmet"] = "vesthelm", ["Defuse kit"] = "defuser", ["Zeus"] = "taser" }
 
 local function on_round_prestart()
+    enemy_misses = {}
     if not ui.get(m.buybot_enabled) then return end
     local cmds_to_run = {}
     local primary, secondary, utility = ui.get(m.buybot_primary), ui.get(m.buybot_secondary), ui.get(m.buybot_utility)
@@ -1550,6 +1647,7 @@ local function on_setup_command(cmd)
     end
     
     handle_advanced_aa(cmd)
+    handle_smart_aimbot()
 end
 
 client.set_event_callback("paint", function()
@@ -1600,6 +1698,9 @@ client.set_event_callback("setup_command", on_setup_command)
 client.set_event_callback("player_death", function(e)
     on_killsay_player_death(e)
     on_player_death_sparkles(e)
+    
+    local victim = client.userid_to_entindex(e.userid)
+    if victim then enemy_misses[victim] = 0 end
 end)
 client.set_event_callback("round_prestart", on_round_prestart)
 client.set_event_callback("aim_fire", on_aim_fire)
