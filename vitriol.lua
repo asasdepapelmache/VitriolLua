@@ -23,7 +23,8 @@ local refs = {
     fl_amount = ui.reference("AA", "Fake lag", "Amount"),
     fl_variance = ui.reference("AA", "Fake lag", "Variance"),
     fl_limit = ui.reference("AA", "Fake lag", "Limit"),
-    slow_motion = ui.reference("AA", "Other", "Slow motion")
+    slow_motion = ui.reference("AA", "Other", "Slow motion"),
+    tp = ui.reference("VISUALS", "Effects", "Force third person (alive)")
 }
 
 -- ==========================================
@@ -69,7 +70,7 @@ m.clantag_timezone = ui.new_combobox(TAB, CONTAINER, "Clock Timezone", { "Brasí
 m.clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
 m.clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
 
--- Advanced Anti-Aim Builder
+-- Anti-Aim
 ui.new_label(TAB, CONTAINER, "--- Advanced Anti-Aim ---")
 m.aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable State-Based AA & FL")
 m.anti_brute = ui.new_checkbox(TAB, CONTAINER, "Enable Anti-Bruteforce (Auto-Flip)")
@@ -114,6 +115,15 @@ m.hotkey_right = ui.new_hotkey(TAB, CONTAINER, "Manual AA: Right")
 m.taser_warning_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Taser Warning ESP")
 m.range_rings_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Zeus & Knife Range Rings")
 m.range_color = ui.new_color_picker(TAB, CONTAINER, "Range Ring Color", 255, 105, 180, 255)
+
+-- Aesthetics (Chinahat & Trails)
+ui.new_label(TAB, CONTAINER, "--- Aesthetics ---")
+m.chinahat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Chinahat")
+m.chinahat_color = ui.new_color_picker(TAB, CONTAINER, "Chinahat Color", 255, 105, 180, 200)
+m.chinahat_size = ui.new_slider(TAB, CONTAINER, "Chinahat Size", 5, 25, 12)
+
+m.trails_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Movement Trails")
+m.trails_color = ui.new_color_picker(TAB, CONTAINER, "Trails Color", 138, 43, 226, 200)
 
 -- Logs na Tela, Hitmarker, Sparkles & Watermark
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
@@ -305,7 +315,6 @@ local function handle_menu()
     ui.set_visible(m.clantag_speed, c_state and c_type == "Animated")
     ui.set_visible(m.clantag_sync, c_state and c_type == "Animated")
 
-    -- Advanced AA Visibility
     local aa_on = ui.get(m.aa_enabled)
     local cur_edit = ui.get(m.aa_state_edit)
     
@@ -340,6 +349,11 @@ local function handle_menu()
     ui.set_visible(m.hotkey_back, maa_state)
     ui.set_visible(m.hotkey_right, maa_state)
     ui.set_visible(m.range_color, ui.get(m.range_rings_enabled))
+
+    local ch_state = ui.get(m.chinahat_enabled)
+    ui.set_visible(m.chinahat_color, ch_state)
+    ui.set_visible(m.chinahat_size, ch_state)
+    ui.set_visible(m.trails_color, ui.get(m.trails_enabled))
 
     local wm_state = ui.get(m.watermark_enabled)
     ui.set_visible(m.watermark_color, wm_state)
@@ -405,7 +419,7 @@ local function handle_menu()
     ui.set_visible(m.quick_switch_select, qs_state)
 end
 
-local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, m.aa_state_edit, m.lby_breaker, m.pitch_exploit, m.reaction_fd, m.slow_walk_jitter }
+local callbacks_list = { m.clantag_enabled, m.camera_enabled, m.clantag_type, m.clantag_timezone, m.hud_enabled, m.watermark_enabled, m.hitmarker_enabled, m.slowdown_enabled, m.stamina_enabled, m.logs_enabled, m.sparkles_enabled, m.manual_aa_enabled, m.range_rings_enabled, m.hitsound_enabled, m.killsound_enabled, m.killsay_enabled, m.buybot_enabled, m.crouch_jump_enabled, m.drop_nades_enabled, m.quick_switch_enabled, m.netgraph_enabled, m.aa_enabled, m.aa_state_edit, m.lby_breaker, m.pitch_exploit, m.reaction_fd, m.slow_walk_jitter, m.chinahat_enabled, m.trails_enabled }
 for i=1, #callbacks_list do
     ui.set_callback(callbacks_list[i], handle_menu)
 end
@@ -439,6 +453,105 @@ end
 local function table_contains(tbl, val)
     for i = 1, #tbl do if tbl[i] == val then return true end end
     return false
+end
+
+-- ==========================================
+-- [ CHINAHAT & TRAILS LOGIC ]
+-- ==========================================
+local trail_positions = {}
+
+local function draw_chinahat()
+    if not ui.get(m.chinahat_enabled) then return end
+    
+    -- Only draw if forcing thirdperson
+    if not ui.get(refs.tp) then return end 
+
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then return end
+
+    local r, g, b, a = ui.get(m.chinahat_color)
+    local ox, oy, oz = entity.get_prop(me, "m_vecOrigin")
+    local duck_amount = entity.get_prop(me, "m_flDuckAmount") or 0
+    
+    -- Dynamic height calculation so it stays on head when crouching
+    oz = oz + 68 - (duck_amount * 18)
+
+    local tip_x, tip_y, tip_z = ox, oy, oz + 12
+    local radius = ui.get(m.chinahat_size)
+    local segments = 24
+    
+    local tip_sx, tip_sy = renderer.world_to_screen(tip_x, tip_y, tip_z)
+    if not tip_sx then return end
+
+    local points = {}
+    for i = 0, segments do
+        local angle = (i / segments) * math.pi * 2
+        local px = ox + math.cos(angle) * radius
+        local py = oy + math.sin(angle) * radius
+        local sx, sy = renderer.world_to_screen(px, py, oz)
+        table.insert(points, {sx, sy})
+    end
+
+    for i = 1, #points - 1 do
+        if points[i][1] and points[i+1][1] then
+            -- Base ring
+            renderer.line(points[i][1], points[i][2], points[i+1][1], points[i+1][2], r, g, b, a)
+            -- Triangle from tip to base
+            renderer.triangle(points[i][1], points[i][2], points[i+1][1], points[i+1][2], tip_sx, tip_sy, r, g, b, math.floor(a * 0.4))
+            -- Skeleton lines
+            renderer.line(points[i][1], points[i][2], tip_sx, tip_sy, r, g, b, math.floor(a * 0.7))
+        end
+    end
+end
+
+local function draw_trails()
+    if not ui.get(m.trails_enabled) then 
+        trail_positions = {}
+        return 
+    end
+    
+    if not ui.get(refs.tp) then return end 
+
+    local me = entity.get_local_player()
+    if not me or not entity.is_alive(me) then 
+        trail_positions = {}
+        return 
+    end
+
+    local r, g, b, a = ui.get(m.trails_color)
+    local ox, oy, oz = entity.get_prop(me, "m_vecOrigin")
+
+    if #trail_positions == 0 or math.sqrt((ox - trail_positions[1].x)^2 + (oy - trail_positions[1].y)^2) > 8 then
+        table.insert(trail_positions, 1, {x = ox, y = oy, z = oz, time = globals.realtime()})
+    end
+
+    while #trail_positions > 35 do table.remove(trail_positions) end
+
+    local curtime = globals.realtime()
+    for i = #trail_positions, 1, -1 do
+        if curtime - trail_positions[i].time > 1.2 then
+            table.remove(trail_positions, i)
+        end
+    end
+
+    for i = 1, #trail_positions - 1 do
+        local p1, p2 = trail_positions[i], trail_positions[i+1]
+        local s1x, s1y = renderer.world_to_screen(p1.x, p1.y, p1.z)
+        local s2x, s2y = renderer.world_to_screen(p2.x, p2.y, p2.z)
+
+        if s1x and s2x then
+            local current_alpha = math.floor(a * (1 - (i / #trail_positions)))
+            renderer.line(s1x, s1y, s2x, s2y, r, g, b, current_alpha)
+            
+            -- Small 3D extrusion effect for the trail
+            local s1x_up, s1y_up = renderer.world_to_screen(p1.x, p1.y, p1.z + 8)
+            local s2x_up, s2y_up = renderer.world_to_screen(p2.x, p2.y, p2.z + 8)
+            if s1x_up and s2x_up then
+                renderer.triangle(s1x, s1y, s2x, s2y, s1x_up, s1y_up, r, g, b, math.floor(current_alpha * 0.2))
+                renderer.triangle(s2x, s2y, s2x_up, s2y_up, s1x_up, s1y_up, r, g, b, math.floor(current_alpha * 0.2))
+            end
+        end
+    end
 end
 
 -- ==========================================
@@ -537,14 +650,11 @@ client.set_event_callback("bullet_impact", function(e)
         local px, py, pz = sx + dx*dot, sy + dy*dot, sz + dz*dot
         local dist = math_sqrt((px-hx)^2 + (py-hy)^2 + (pz-hz)^2)
         
-        -- Detected bullet passing close to head
         if dist < 60 then
-            -- Anti-Bruteforce Logic
             if ui.get(m.anti_brute) then 
                 bruteforce_flip = not bruteforce_flip 
             end
             
-            -- Reactionary Fake Duck Logic
             if ui.get(m.reaction_fd) then
                 force_duck_ticks = 3
             end
@@ -567,7 +677,6 @@ local function handle_advanced_aa(cmd)
     local me = entity.get_local_player()
     if not me or not entity.is_alive(me) then return end
     
-    -- Exploit 1: Slow Walk Jitter
     if ui.get(m.slow_walk_jitter) and ui.get(refs.slow_motion) then
         slow_walk_tick = slow_walk_tick + 1
         if slow_walk_tick % 2 == 0 then
@@ -578,19 +687,15 @@ local function handle_advanced_aa(cmd)
         end
     end
 
-    -- Exploit 2: Reactionary Fake Duck
     if force_duck_ticks > 0 then
         cmd.in_duck = 1
         force_duck_ticks = force_duck_ticks - 1
     end
 
-    -- Exploit 4: Pitch Manipulation
     if ui.get(m.pitch_exploit) then
-        -- Randomize pitch between 86.0 and 89.0 (Untrusted angle jitter)
         cmd.pitch = 89.0 - (math.random(0, 30) / 10.0)
     end
 
-    -- Base State Calculations
     local flags = entity.get_prop(me, "m_fFlags")
     local vx, vy = entity.get_prop(me, "m_vecVelocity")
     local speed = math_sqrt(vx * vx + vy * vy)
@@ -615,7 +720,6 @@ local function handle_advanced_aa(cmd)
     ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
     ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
 
-    -- Exploit 3: LBY Breaker (Integrated directly into Body Yaw)
     local target_body_yaw = ui.get(set.body_yaw)
     if ui.get(m.lby_breaker) then
         target_body_yaw = (cmd.command_number % 3 == 0) and "Opposite" or "Jitter"
@@ -629,7 +733,6 @@ local function handle_advanced_aa(cmd)
     ui.set(refs.fl_amount, ui.get(set.fl_amount))
     ui.set(refs.fl_variance, ui.get(set.fl_variance))
     
-    -- LC Breaker Logic
     local final_limit = ui.get(set.fl_limit)
     if ui.get(m.lc_breaker) and current_state == "Move" then
         if cmd.command_number % 3 == 0 then
@@ -770,7 +873,6 @@ end
 client.set_event_callback("pre_config_load", function() syncing = false end)
 client.set_event_callback("post_config_load", function() syncing = true end)
 
-
 -- ==========================================
 -- [ NADE DROPPER ]
 -- ==========================================
@@ -819,7 +921,6 @@ local function handle_nade_dropper(cmd)
         cmd.yaw = yaw; cmd.pitch = pitch + offset; cmd.no_choke = true; cmd.allow_send_packet = true
     end
 end
-
 
 -- ==========================================
 --            [ WATERMARK ]
@@ -874,7 +975,6 @@ local function draw_watermark()
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, time_str)
 end
 
-
 -- ==========================================
 -- [ STAMINA METER ]
 -- ==========================================
@@ -914,7 +1014,6 @@ local function draw_stamina_meter()
     renderer.text(cx + 1, bar_y - 12 + 1, 10, 10, 10, math.floor(a * 0.8), "c", 0, text)
     renderer.text(cx, bar_y - 12, 255, 255, 255, a, "c", 0, text)
 end
-
 
 -- ==========================================
 -- [ INDICADORES DA HUD E SLOWDOWN ]
@@ -1078,7 +1177,6 @@ local function draw_crosshair_hud()
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "SAFE", anim_data.sp)
 end
 
-
 -- ==========================================
 -- [ LOGS E HITMARKER ]
 -- ==========================================
@@ -1231,7 +1329,6 @@ local function on_player_death_sparkles(e)
     end
 end
 
-
 -- ==========================================
 -- [ TRASH TALK ]
 -- ==========================================
@@ -1333,7 +1430,6 @@ client.set_event_callback("player_disconnect", function(e)
     end
 end)
 
-
 -- ==========================================
 -- [ BUYBOT ]
 -- ==========================================
@@ -1424,83 +1520,6 @@ local cjump_start_time = nil
 local cjump_was_active = false
 local cjump_jumped = false
 
-local function handle_advanced_aa(cmd)
-    if not ui.get(m.aa_enabled) then return end
-    
-    local me = entity.get_local_player()
-    if not me or not entity.is_alive(me) then return end
-    
-    -- Exploit 1: Slow Walk Jitter
-    if ui.get(m.slow_walk_jitter) and ui.get(refs.slow_motion) then
-        slow_walk_tick = slow_walk_tick + 1
-        if slow_walk_tick % 2 == 0 then
-            cmd.forwardmove = cmd.forwardmove * 0.7
-            cmd.sidemove = cmd.sidemove * 0.7
-        else
-            cmd.forwardmove = cmd.forwardmove * 1.2
-        end
-    end
-
-    -- Exploit 2: Reactionary Fake Duck
-    if force_duck_ticks > 0 then
-        cmd.in_duck = 1
-        force_duck_ticks = force_duck_ticks - 1
-    end
-
-    -- Exploit 4: Pitch Manipulation
-    if ui.get(m.pitch_exploit) then
-        cmd.pitch = 89.0 - (math.random(0, 30) / 10.0)
-    end
-
-    -- Base State Calculations
-    local flags = entity.get_prop(me, "m_fFlags")
-    local vx, vy = entity.get_prop(me, "m_vecVelocity")
-    local speed = math_sqrt(vx * vx + vy * vy)
-    local in_air = bit_band(flags, 1) == 0
-    local duck_amount = entity.get_prop(me, "m_flDuckAmount")
-    
-    local current_state = "Stand"
-    if in_air then 
-        current_state = "Air"
-    elseif duck_amount > 0.5 then 
-        current_state = "Crouch"
-    elseif speed > 5 then 
-        current_state = "Move" 
-    end
-    
-    local set = m.aa_settings[current_state]
-    
-    if manual_state == 0 then
-        ui.set(refs.yaw_slider, ui.get(set.yaw))
-    end
-    
-    ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
-    ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
-
-    -- Exploit 3: LBY Breaker Integrado ao Body Yaw
-    local target_body_yaw = ui.get(set.body_yaw)
-    if ui.get(m.lby_breaker) then
-        target_body_yaw = (cmd.command_number % 3 == 0) and "Opposite" or "Jitter"
-    end
-    ui.set(refs.body_yaw[1], target_body_yaw)
-    
-    local target_desync = ui.get(set.desync)
-    if bruteforce_flip then target_desync = -target_desync end
-    ui.set(refs.body_yaw[2], target_desync)
-    
-    ui.set(refs.fl_amount, ui.get(set.fl_amount))
-    ui.set(refs.fl_variance, ui.get(set.fl_variance))
-    
-    -- LC Breaker Logic
-    local final_limit = ui.get(set.fl_limit)
-    if ui.get(m.lc_breaker) and current_state == "Move" then
-        if cmd.command_number % 3 == 0 then
-            final_limit = math.max(1, final_limit - math.random(3, 7))
-        end
-    end
-    ui.set(refs.fl_limit, final_limit)
-end
-
 local function on_setup_command(cmd)
     handle_nade_dropper(cmd)
 
@@ -1546,6 +1565,8 @@ client.set_event_callback("paint", function()
     draw_3d_hitmarkers()
     draw_watermark()
     draw_netgraph()
+    draw_chinahat()
+    draw_trails()
 end)
 
 client.set_event_callback("weapon_fire", function(e)
