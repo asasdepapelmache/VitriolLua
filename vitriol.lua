@@ -1,101 +1,25 @@
--- Vitriol.lua by larihvh
+-- Vitriol.lua by larihvh (Ultra-Safe Version)
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
 
+-- Tentativa de carregar a API invisível de Player List do Skeet para evitar mexer no menu
+local plist_ok, plist = pcall(require, "gamesense/plist")
+
 -- ==========================================
--- [ FFI - ANIMSTATE & ADVANCED RESOLVER ]
+-- [ SISTEMA DE PROTEÇÃO ANTI-STACK OVERFLOW ]
+-- ==========================================
+local _vitriol_menu_guard = false
+local _vitriol_ui_guard = false
+
+-- ==========================================
+-- [ FFI - APENAS SPARKLES E AUDIO (SEGURO) ]
 -- ==========================================
 ffi.cdef [[
     struct vitriol_spark_vec3_t { float x, y, z; };
     typedef void(__fastcall*Vitriol_FX_ElectricSparkFn)(const struct vitriol_spark_vec3_t*, int, int, const struct vitriol_spark_vec3_t*);
-
-    struct vitriol_animstate_t {
-        char pad[3];
-        char m_bForceWeaponUpdate;
-        char pad1[91];
-        void* m_pBaseEntity;
-        void* m_pActiveWeapon;
-        void* m_pLastActiveWeapon;
-        float m_flLastClientSideAnimationUpdateTime;
-        int m_iLastClientSideAnimationUpdateFramecount;
-        float m_flAnimUpdateDelta;
-        float m_flEyeYaw;
-        float m_flPitch;
-        float m_flGoalFeetYaw;
-        float m_flCurrentFeetYaw;
-        float m_flToTargetBodyYaw;
-        float m_flClampedVelocityYawDelta;
-        float m_flLeanAmount;
-        char pad2[4];
-        float m_flFeetCycle;
-        float m_flFeetYawRate;
-        char pad3[4];
-        float m_flDuckAmount;
-        float m_flLandingDuckAdditiveThisFrame;
-        char pad4[4];
-        float m_flOriginX;
-        float m_flOriginY;
-        float m_flOriginZ;
-        float m_flLastOriginX;
-        float m_flLastOriginY;
-        float m_flLastOriginZ;
-        float m_flVelocityX;
-        float m_flVelocityY;
-        char pad5[4];
-        float m_flLastAnimationStateTime;
-        char pad6[4];
-        float m_flUpVelocity;
-        char pad7[4];
-        float m_flSpeed;
-        float m_flFeetSpeedForwardsOrSideWays;
-        float m_flFeetSpeedUnknownForwardOrBad;
-        char pad8[4];
-        float m_flTimeSinceMoveWeightIsZero;
-        char pad9[6];
-        char m_bOnGround;
-        char m_bInHitGroundAnimation;
-        char pad10[10];
-        float m_flLastClientSideAnimationUpdateTimeDelta;
-        char pad11[8];
-        float m_flYawJustTurnedMax;
-        char pad12[4];
-        float m_flGroundFraction;
-        char pad13[4];
-        float m_flAccumulatedBoneRotation;
-        char pad14[4];
-    };
-
-    typedef void*(__thiscall* vitriol_get_client_entity_t)(void*, int);
 ]]
 
-local raw_entity_list = client.create_interface("client.dll", "VClientEntityList003")
-local get_client_entity_fn = nil
-
-if raw_entity_list then
-    pcall(function()
-        get_client_entity_fn = ffi.cast("vitriol_get_client_entity_t", (ffi.cast("void***", raw_entity_list)[0])[3])
-    end)
-end
-
-local function get_entity_address(entindex)
-    if not get_client_entity_fn then return nil end
-    return get_client_entity_fn(raw_entity_list, entindex)
-end
-
-local function get_animstate(entindex)
-    local addr = get_entity_address(entindex)
-    if addr == nil then return nil end
-    local success, animstate_ptr = pcall(function()
-        return ffi.cast("struct vitriol_animstate_t**", ffi.cast("char*", addr) + 0x3914)
-    end)
-    if not success or animstate_ptr == nil or animstate_ptr[0] == nil then return nil end
-    return animstate_ptr[0]
-end
-
--- ==========================================
--- [ FFI - SPARKLES & SAFE AUDIO ]
--- ==========================================
 local FX_ElectricSpark
 pcall(function()
     FX_ElectricSpark = ffi.cast("Vitriol_FX_ElectricSparkFn", client.find_signature("client.dll", "\x55\x8B\xEC\x83\xEC\x3C\x53\x8B\xD9\x89\x55\xFC\x8B\x0D\xCC\xCC\xCC\xCC\x56\x57"))
@@ -156,7 +80,6 @@ end)
 local m = {}
 ui.new_label(TAB, CONTAINER, "====== [ Vitriol.lua ] ======")
 
--- Clantag
 ui.new_label(TAB, CONTAINER, "--- Clantag ---")
 m.clantag_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol.lua Clantag")
 m.clantag_type = ui.new_combobox(TAB, CONTAINER, "Clantag Type", { "Animated", "Static", "Clock" })
@@ -164,12 +87,10 @@ m.clantag_timezone = ui.new_combobox(TAB, CONTAINER, "Clock Timezone", { "Brasí
 m.clantag_speed = ui.new_slider(TAB, CONTAINER, "Animation Speed", 1, 10, 3, true, "s", 0.1)
 m.clantag_sync = ui.new_button(TAB, CONTAINER, "Sync Clantag", function() end)
 
--- Custom Resolver
 ui.new_label(TAB, CONTAINER, "--- Advanced Resolver ---")
 m.resolver_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Vitriol Resolver")
 m.resolver_mode = ui.new_combobox(TAB, CONTAINER, "Resolver Mode", { "Smart Animstate", "Bruteforce Logic" })
 
--- Anti-Aim
 ui.new_label(TAB, CONTAINER, "--- Advanced Anti-Aim ---")
 m.aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable State-Based AA & FL")
 m.anti_brute = ui.new_checkbox(TAB, CONTAINER, "Enable Anti-Bruteforce (Auto-Flip)")
@@ -199,7 +120,6 @@ for i=1, #aa_states do
     }
 end
 
--- Smart Aimbot Helper
 ui.new_label(TAB, CONTAINER, "--- Smart Aimbot ---")
 m.smart_aim_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Smart Aimbot Helper")
 m.smart_aim_baim_lethal = ui.new_checkbox(TAB, CONTAINER, "Force Baim on Lethal")
@@ -207,13 +127,11 @@ m.smart_aim_baim_hp = ui.new_slider(TAB, CONTAINER, "Force Baim if HP <=", 0, 10
 m.smart_aim_baim_misses = ui.new_slider(TAB, CONTAINER, "Force Baim after X Misses", 0, 10, 0)
 m.smart_aim_sp_misses = ui.new_slider(TAB, CONTAINER, "Force Safepoint after X Misses", 0, 10, 0)
 
--- Crosshair Indicators
 ui.new_label(TAB, CONTAINER, "--- Indicators ---")
 m.hud_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Crosshair HUD")
 m.hud_style = ui.new_combobox(TAB, CONTAINER, "HUD Text Style", { "Normal", "Bold" })
 m.hud_color = ui.new_color_picker(TAB, CONTAINER, "HUD Accent Color", 255, 105, 180, 255)
 
--- New ESP / Indicators
 ui.new_label(TAB, CONTAINER, "--- Extra ESP ---")
 m.manual_aa_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Manual AA Arrows")
 m.manual_aa_color = ui.new_color_picker(TAB, CONTAINER, "Manual AA Color", 255, 105, 180, 255)
@@ -225,7 +143,6 @@ m.taser_warning_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Taser Warning 
 m.range_rings_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Zeus & Knife Range Rings")
 m.range_color = ui.new_color_picker(TAB, CONTAINER, "Range Ring Color", 255, 105, 180, 255)
 
--- Aesthetics (Chinahat & Trails)
 ui.new_label(TAB, CONTAINER, "--- Aesthetics ---")
 m.chinahat_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Chinahat")
 m.chinahat_color = ui.new_color_picker(TAB, CONTAINER, "Chinahat Color", 255, 105, 180, 200)
@@ -234,7 +151,6 @@ m.chinahat_size = ui.new_slider(TAB, CONTAINER, "Chinahat Size", 5, 25, 12)
 m.trails_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Movement Trails")
 m.trails_color = ui.new_color_picker(TAB, CONTAINER, "Trails Color", 138, 43, 226, 200)
 
--- Logs na Tela, Hitmarker, Sparkles & Watermark
 ui.new_label(TAB, CONTAINER, "--- Visuals ---")
 m.watermark_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Watermark")
 m.watermark_color = ui.new_color_picker(TAB, CONTAINER, "Watermark Accent", 255, 105, 180, 255)
@@ -256,7 +172,6 @@ m.sparkles_color = ui.new_color_picker(TAB, CONTAINER, "Sparkle Color", 255, 255
 m.sparkles_radius = ui.new_slider(TAB, CONTAINER, "Sparkle Radius", 3, 10, 3)
 m.sparkles_length = ui.new_slider(TAB, CONTAINER, "Sparkle Length", 1, 10, 2)
 
--- Netgraph (Aesthetic Style)
 ui.new_label(TAB, CONTAINER, "--- Netgraph ---")
 m.netgraph_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Netgraph")
 m.netgraph_color = ui.new_color_picker(TAB, CONTAINER, "Netgraph Color", 255, 255, 255, 255)
@@ -264,7 +179,6 @@ m.netgraph_size = ui.new_combobox(TAB, CONTAINER, "Netgraph Size", { "Mini", "No
 m.netgraph_x = ui.new_slider(TAB, CONTAINER, "Netgraph X Offset (%)", 0, 100, 85, true, "%")
 m.netgraph_y = ui.new_slider(TAB, CONTAINER, "Netgraph Y Offset (%)", 0, 100, 90, true, "%")
 
--- Camera & Viewmodel
 ui.new_label(TAB, CONTAINER, "--- Camera & Viewmodel ---")
 m.camera_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Camera Mods")
 m.aspect_ratio_slider = ui.new_slider(TAB, CONTAINER, "Aspect Ratio (0 = Default)", 0, 200, 0, true, "%", 0.01)
@@ -273,7 +187,6 @@ m.viewmodel_x = ui.new_slider(TAB, CONTAINER, "Viewmodel X", -20, 20, 2)
 m.viewmodel_y = ui.new_slider(TAB, CONTAINER, "Viewmodel Y", -20, 20, 0)
 m.viewmodel_z = ui.new_slider(TAB, CONTAINER, "Viewmodel Z", -20, 20, -1)
 
--- Custom Sounds
 ui.new_label(TAB, CONTAINER, "--- Custom Sounds ---")
 m.hitsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Hitsound")
 m.hitsound_file = ui.new_textbox(TAB, CONTAINER, "Hitsound File (in csgo/sound/)")
@@ -281,7 +194,6 @@ m.killsound_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Custom Killsound")
 m.killsound_file = ui.new_textbox(TAB, CONTAINER, "Killsound File (in csgo/sound/)")
 m.sound_volume = ui.new_slider(TAB, CONTAINER, "Sound Volume Multiplier", 1, 5, 1, true, "x")
 
--- Trash Talk
 ui.new_label(TAB, CONTAINER, "--- Trash Talk ---")
 m.killsay_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Trash Talk")
 m.killsay_name = ui.new_checkbox(TAB, CONTAINER, "Name on Killsay")
@@ -290,14 +202,12 @@ m.killsay_molly = ui.new_checkbox(TAB, CONTAINER, "Enable Molotov Say")
 m.killsay_revenge = ui.new_checkbox(TAB, CONTAINER, "Enable Revenge Say")
 m.killsay_delay = ui.new_slider(TAB, CONTAINER, "Message Delay (s)", 0, 5, 0, true, "s", 1)
 
--- Buybot
 ui.new_label(TAB, CONTAINER, "--- Buybot ---")
 m.buybot_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Buybot")
 m.buybot_primary = ui.new_combobox(TAB, CONTAINER, "Primary weapon", { "None", "Auto", "Scout", "Awp", "Primary rifle", "Scoped rifle", "Machine gun" })
 m.buybot_secondary = ui.new_combobox(TAB, CONTAINER, "Secondary weapon", { "None", "Default pistol", "P250", "Dual Berettas", "Light pistol", "Heavy pistol" })
 m.buybot_utility = ui.new_multiselect(TAB, CONTAINER, "Utility", { "Grenade", "Smoke", "Incendiary", "Flashbang", "Kevlar + Helmet", "Defuse kit", "Zeus" })
 
--- Misc
 ui.new_label(TAB, CONTAINER, "--- Misc ---")
 m.crouch_jump_enabled = ui.new_checkbox(TAB, CONTAINER, "Enable Train Jump Assist")
 m.crouch_jump_hotkey = ui.new_hotkey(TAB, CONTAINER, "Train Jump Hotkey", true)
@@ -416,125 +326,131 @@ end
 -- [ VISIBILITY HANDLER ]
 -- ==========================================
 local function handle_menu()
-    local c_state = ui.get(m.clantag_enabled)
-    local c_type = ui.get(m.clantag_type)
-    ui.set_visible(m.clantag_type, c_state)
-    ui.set_visible(m.clantag_timezone, c_state and c_type == "Clock")
-    ui.set_visible(m.clantag_speed, c_state and c_type == "Animated")
-    ui.set_visible(m.clantag_sync, c_state and c_type == "Animated")
+    if _vitriol_menu_guard then return end
+    _vitriol_menu_guard = true
 
-    ui.set_visible(m.resolver_mode, ui.get(m.resolver_enabled))
+    pcall(function()
+        local c_state = ui.get(m.clantag_enabled)
+        local c_type = ui.get(m.clantag_type)
+        ui.set_visible(m.clantag_type, c_state)
+        ui.set_visible(m.clantag_timezone, c_state and c_type == "Clock")
+        ui.set_visible(m.clantag_speed, c_state and c_type == "Animated")
+        ui.set_visible(m.clantag_sync, c_state and c_type == "Animated")
 
-    local aa_on = ui.get(m.aa_enabled)
-    local cur_edit = ui.get(m.aa_state_edit)
+        ui.set_visible(m.resolver_mode, ui.get(m.resolver_enabled))
 
-    ui.set_visible(m.anti_brute, aa_on)
-    ui.set_visible(m.anti_backstab, aa_on)
-    ui.set_visible(m.anti_backstab_dist, aa_on and ui.get(m.anti_backstab))
-    ui.set_visible(m.lc_breaker, aa_on)
-    ui.set_visible(m.lby_breaker, aa_on)
-    ui.set_visible(m.reaction_fd, aa_on)
-    ui.set_visible(m.pitch_exploit, aa_on)
-    ui.set_visible(m.slow_walk_jitter, aa_on)
-    ui.set_visible(m.aa_state_edit, aa_on)
+        local aa_on = ui.get(m.aa_enabled)
+        local cur_edit = ui.get(m.aa_state_edit)
 
-    for i=1, #aa_states do
-        local st = aa_states[i]
-        local show = aa_on and (cur_edit == st)
-        ui.set_visible(m.aa_settings[st].yaw, show)
-        ui.set_visible(m.aa_settings[st].jitter_mode, show)
-        ui.set_visible(m.aa_settings[st].jitter_range, show)
-        ui.set_visible(m.aa_settings[st].body_yaw, show)
-        ui.set_visible(m.aa_settings[st].desync, show)
-        ui.set_visible(m.aa_settings[st].fl_limit, show)
-        ui.set_visible(m.aa_settings[st].fl_amount, show)
-        ui.set_visible(m.aa_settings[st].fl_variance, show)
-    end
+        ui.set_visible(m.anti_brute, aa_on)
+        ui.set_visible(m.anti_backstab, aa_on)
+        ui.set_visible(m.anti_backstab_dist, aa_on and ui.get(m.anti_backstab))
+        ui.set_visible(m.lc_breaker, aa_on)
+        ui.set_visible(m.lby_breaker, aa_on)
+        ui.set_visible(m.reaction_fd, aa_on)
+        ui.set_visible(m.pitch_exploit, aa_on)
+        ui.set_visible(m.slow_walk_jitter, aa_on)
+        ui.set_visible(m.aa_state_edit, aa_on)
 
-    local sa_state = ui.get(m.smart_aim_enabled)
-    ui.set_visible(m.smart_aim_baim_lethal, sa_state)
-    ui.set_visible(m.smart_aim_baim_hp, sa_state)
-    ui.set_visible(m.smart_aim_baim_misses, sa_state)
-    ui.set_visible(m.smart_aim_sp_misses, sa_state)
+        for i=1, #aa_states do
+            local st = aa_states[i]
+            local show = aa_on and (cur_edit == st)
+            ui.set_visible(m.aa_settings[st].yaw, show)
+            ui.set_visible(m.aa_settings[st].jitter_mode, show)
+            ui.set_visible(m.aa_settings[st].jitter_range, show)
+            ui.set_visible(m.aa_settings[st].body_yaw, show)
+            ui.set_visible(m.aa_settings[st].desync, show)
+            ui.set_visible(m.aa_settings[st].fl_limit, show)
+            ui.set_visible(m.aa_settings[st].fl_amount, show)
+            ui.set_visible(m.aa_settings[st].fl_variance, show)
+        end
 
-    local h_state = ui.get(m.hud_enabled)
-    ui.set_visible(m.hud_style, h_state)
-    ui.set_visible(m.hud_color, h_state)
+        local sa_state = ui.get(m.smart_aim_enabled)
+        ui.set_visible(m.smart_aim_baim_lethal, sa_state)
+        ui.set_visible(m.smart_aim_baim_hp, sa_state)
+        ui.set_visible(m.smart_aim_baim_misses, sa_state)
+        ui.set_visible(m.smart_aim_sp_misses, sa_state)
 
-    local maa_state = ui.get(m.manual_aa_enabled)
-    ui.set_visible(m.manual_aa_color, maa_state)
-    ui.set_visible(m.hotkey_left, maa_state)
-    ui.set_visible(m.hotkey_back, maa_state)
-    ui.set_visible(m.hotkey_right, maa_state)
-    ui.set_visible(m.range_color, ui.get(m.range_rings_enabled))
+        local h_state = ui.get(m.hud_enabled)
+        ui.set_visible(m.hud_style, h_state)
+        ui.set_visible(m.hud_color, h_state)
 
-    local ch_state = ui.get(m.chinahat_enabled)
-    ui.set_visible(m.chinahat_color, ch_state)
-    ui.set_visible(m.chinahat_size, ch_state)
-    ui.set_visible(m.trails_color, ui.get(m.trails_enabled))
+        local maa_state = ui.get(m.manual_aa_enabled)
+        ui.set_visible(m.manual_aa_color, maa_state)
+        ui.set_visible(m.hotkey_left, maa_state)
+        ui.set_visible(m.hotkey_back, maa_state)
+        ui.set_visible(m.hotkey_right, maa_state)
+        ui.set_visible(m.range_color, ui.get(m.range_rings_enabled))
 
-    local wm_state = ui.get(m.watermark_enabled)
-    ui.set_visible(m.watermark_color, wm_state)
+        local ch_state = ui.get(m.chinahat_enabled)
+        ui.set_visible(m.chinahat_color, ch_state)
+        ui.set_visible(m.chinahat_size, ch_state)
+        ui.set_visible(m.trails_color, ui.get(m.trails_enabled))
 
-    local hm_state = ui.get(m.hitmarker_enabled)
-    ui.set_visible(m.hitmarker_style, hm_state)
+        local wm_state = ui.get(m.watermark_enabled)
+        ui.set_visible(m.watermark_color, wm_state)
 
-    local sd_state = ui.get(m.slowdown_enabled)
-    ui.set_visible(m.slowdown_color, sd_state)
+        local hm_state = ui.get(m.hitmarker_enabled)
+        ui.set_visible(m.hitmarker_style, hm_state)
 
-    local st_state = ui.get(m.stamina_enabled)
-    ui.set_visible(m.stamina_color, st_state)
+        local sd_state = ui.get(m.slowdown_enabled)
+        ui.set_visible(m.slowdown_color, sd_state)
 
-    local lg_state = ui.get(m.logs_enabled)
-    ui.set_visible(m.logs_pos_ui, lg_state)
+        local st_state = ui.get(m.stamina_enabled)
+        ui.set_visible(m.stamina_color, st_state)
 
-    local sp_state = ui.get(m.sparkles_enabled)
-    ui.set_visible(m.sparkles_color, sp_state)
-    ui.set_visible(m.sparkles_radius, sp_state)
-    ui.set_visible(m.sparkles_length, sp_state)
+        local lg_state = ui.get(m.logs_enabled)
+        ui.set_visible(m.logs_pos_ui, lg_state)
 
-    local ng_state = ui.get(m.netgraph_enabled)
-    ui.set_visible(m.netgraph_color, ng_state)
-    ui.set_visible(m.netgraph_size, ng_state)
-    ui.set_visible(m.netgraph_x, ng_state)
-    ui.set_visible(m.netgraph_y, ng_state)
+        local sp_state = ui.get(m.sparkles_enabled)
+        ui.set_visible(m.sparkles_color, sp_state)
+        ui.set_visible(m.sparkles_radius, sp_state)
+        ui.set_visible(m.sparkles_length, sp_state)
 
-    local cam_state = ui.get(m.camera_enabled)
-    ui.set_visible(m.aspect_ratio_slider, cam_state)
-    ui.set_visible(m.viewmodel_fov, cam_state)
-    ui.set_visible(m.viewmodel_x, cam_state)
-    ui.set_visible(m.viewmodel_y, cam_state)
-    ui.set_visible(m.viewmodel_z, cam_state)
+        local ng_state = ui.get(m.netgraph_enabled)
+        ui.set_visible(m.netgraph_color, ng_state)
+        ui.set_visible(m.netgraph_size, ng_state)
+        ui.set_visible(m.netgraph_x, ng_state)
+        ui.set_visible(m.netgraph_y, ng_state)
 
-    local hs_state = ui.get(m.hitsound_enabled)
-    ui.set_visible(m.hitsound_file, hs_state)
-    local ks_state = ui.get(m.killsound_enabled)
-    ui.set_visible(m.killsound_file, ks_state)
-    ui.set_visible(m.sound_volume, hs_state or ks_state)
+        local cam_state = ui.get(m.camera_enabled)
+        ui.set_visible(m.aspect_ratio_slider, cam_state)
+        ui.set_visible(m.viewmodel_fov, cam_state)
+        ui.set_visible(m.viewmodel_x, cam_state)
+        ui.set_visible(m.viewmodel_y, cam_state)
+        ui.set_visible(m.viewmodel_z, cam_state)
 
-    local k_state = ui.get(m.killsay_enabled)
-    ui.set_visible(m.killsay_name, k_state)
-    ui.set_visible(m.killsay_death, k_state)
-    ui.set_visible(m.killsay_molly, k_state)
-    ui.set_visible(m.killsay_revenge, k_state)
-    ui.set_visible(m.killsay_delay, k_state)
+        local hs_state = ui.get(m.hitsound_enabled)
+        ui.set_visible(m.hitsound_file, hs_state)
+        local ks_state = ui.get(m.killsound_enabled)
+        ui.set_visible(m.killsound_file, ks_state)
+        ui.set_visible(m.sound_volume, hs_state or ks_state)
 
-    local b_state = ui.get(m.buybot_enabled)
-    ui.set_visible(m.buybot_primary, b_state)
-    ui.set_visible(m.buybot_secondary, b_state)
-    ui.set_visible(m.buybot_utility, b_state)
+        local k_state = ui.get(m.killsay_enabled)
+        ui.set_visible(m.killsay_name, k_state)
+        ui.set_visible(m.killsay_death, k_state)
+        ui.set_visible(m.killsay_molly, k_state)
+        ui.set_visible(m.killsay_revenge, k_state)
+        ui.set_visible(m.killsay_delay, k_state)
 
-    local cj_state = ui.get(m.crouch_jump_enabled)
-    ui.set_visible(m.crouch_jump_hotkey, cj_state)
-    ui.set_visible(m.crouch_jump_delay, cj_state)
-    ui.set_visible(m.crouch_release_delay, cj_state)
+        local b_state = ui.get(m.buybot_enabled)
+        ui.set_visible(m.buybot_primary, b_state)
+        ui.set_visible(m.buybot_secondary, b_state)
+        ui.set_visible(m.buybot_utility, b_state)
 
-    local dn_state = ui.get(m.drop_nades_enabled)
-    ui.set_visible(m.drop_nades_hotkey, dn_state)
-    ui.set_visible(m.drop_nades_select, dn_state)
+        local cj_state = ui.get(m.crouch_jump_enabled)
+        ui.set_visible(m.crouch_jump_hotkey, cj_state)
+        ui.set_visible(m.crouch_jump_delay, cj_state)
+        ui.set_visible(m.crouch_release_delay, cj_state)
 
-    local qs_state = ui.get(m.quick_switch_enabled)
-    ui.set_visible(m.quick_switch_select, qs_state)
+        local dn_state = ui.get(m.drop_nades_enabled)
+        ui.set_visible(m.drop_nades_hotkey, dn_state)
+        ui.set_visible(m.drop_nades_select, dn_state)
+
+        local qs_state = ui.get(m.quick_switch_enabled)
+        ui.set_visible(m.quick_switch_select, qs_state)
+    end)
+    _vitriol_menu_guard = false 
 end
 
 local callbacks_list = {
@@ -562,6 +478,46 @@ handle_menu()
 -- ==========================================
 local function trim_string(s) return s:match("^%s*(.-)%s*$") end
 local function lerp(a, b, t) return a + (b - a) * t end
+
+local function safe_ui_set(ref, ...)
+    if ref == nil or _vitriol_ui_guard then return end
+    _vitriol_ui_guard = true
+
+    local target = { ... }
+    
+    pcall(function()
+        local current = { ui.get(ref) }
+        local changed = false
+
+        if #current ~= #target then
+            changed = true
+        else
+            for i=1, #current do
+                if type(current[i]) == "table" and type(target[i]) == "table" then
+                    if #current[i] ~= #target[i] then 
+                        changed = true 
+                        break 
+                    end
+                    for j=1, #current[i] do
+                        if current[i][j] ~= target[i][j] then
+                            changed = true 
+                            break
+                        end
+                    end
+                elseif current[i] ~= target[i] then
+                    changed = true
+                    break
+                end
+            end
+        end
+
+        if changed then
+            ui.set(ref, unpack(target))
+        end
+    end)
+
+    _vitriol_ui_guard = false
+end
 
 local function is_active(ref_tbl)
     if not ref_tbl or ref_tbl[1] == nil then return false end
@@ -681,7 +637,7 @@ end
 local manual_state = 0
 local last_press_l, last_press_r, last_press_b = 0, 0, 0
 
-local function handle_manual_aa()
+local function handle_manual_aa_keys()
     if not ui.get(m.manual_aa_enabled) then return end
 
     local left = ui.get(m.hotkey_left)
@@ -697,15 +653,6 @@ local function handle_manual_aa()
     elseif back and globals.realtime() > last_press_b + 0.2 then
         manual_state = 0
         last_press_b = globals.realtime()
-    end
-
-    ui.set(refs.yaw_base, "Local view")
-    if manual_state == 1 then 
-        ui.set(refs.yaw_slider, -90)
-    elseif manual_state == 2 then 
-        ui.set(refs.yaw_slider, 90) 
-    elseif not ui.get(m.aa_enabled) then
-        ui.set(refs.yaw_slider, 0)
     end
 end
 
@@ -740,7 +687,9 @@ local force_duck_ticks = 0
 local math_sqrt = math.sqrt
 local bit_band = bit.band
 local enemy_misses = {}
+
 local plist_cache = {}
+local sp_active_until = {} 
 
 local function handle_smart_aimbot()
     local use_smart_aim = ui.get(m.smart_aim_enabled)
@@ -758,11 +707,11 @@ local function handle_smart_aimbot()
     local idx = bit_band(entity.get_prop(wpn, "m_iItemDefinitionIndex") or 0, 0xFFFF)
     local lethal_dmg = 100
 
-    if idx == 40 then lethal_dmg = 74 -- Scout
-    elseif idx == 9 then lethal_dmg = 115 -- AWP
-    elseif idx == 38 or idx == 11 then lethal_dmg = 40 -- SCAR-20 / G3SG1
-    elseif idx == 64 then lethal_dmg = 86 -- Revolver
-    elseif idx == 1 then lethal_dmg = 46 -- Deagle
+    if idx == 40 then lethal_dmg = 74 
+    elseif idx == 9 then lethal_dmg = 115 
+    elseif idx == 38 or idx == 11 then lethal_dmg = 40 
+    elseif idx == 64 then lethal_dmg = 86 
+    elseif idx == 1 then lethal_dmg = 46 
     end
 
     local orig_player = ref_plist and ui.get(ref_plist) or nil
@@ -801,46 +750,53 @@ local function handle_smart_aimbot()
                     else force_baim = true end
                 end
             elseif mode == "Smart Animstate" then
-                local state = get_animstate(ent)
-                if state ~= nil then
-                    local eye_yaw = state.m_flEyeYaw
-                    local feet_yaw = state.m_flGoalFeetYaw
-                    local delta = math.abs(eye_yaw - feet_yaw)
+                -- AGORA USANDO API NATIVA E SEGURA
+                local eye_yaw = entity.get_prop(ent, "m_angEyeAngles[1]")
+                local lby = entity.get_prop(ent, "m_flLowerBodyYawTarget")
+                
+                if eye_yaw ~= nil and lby ~= nil then
+                    local delta = math.abs((eye_yaw - lby + 180) % 360 - 180)
                     if delta > 30 then
-                        force_sp = true
+                        sp_active_until[ent] = globals.realtime() + 0.5
                     end
                 end
             end
         end
+
+        if sp_active_until[ent] and globals.realtime() < sp_active_until[ent] then
+            force_sp = true
+        end
         
-        if type(plist) == "table" and plist.set then
-            pcall(function() plist.set(ent, "Force body aim", force_baim) end)
-            pcall(function() plist.set(ent, "Force safe point", force_sp) end)
-            pcall(function() plist.set(ent, "Correction active", correction) end)
-            
+        if plist_ok then
+            plist.set(ent, "Force body aim", force_baim)
+            plist.set(ent, "Force safe point", force_sp)
+            plist.set(ent, "Correction active", correction)
         elseif ref_plist and ref_plist_baim and ref_plist_sp and ref_plist_corr then
-            if not plist_cache[ent] then plist_cache[ent] = { baim = nil, sp = nil, corr = nil } end
+            if not plist_cache[ent] then plist_cache[ent] = { baim = nil, sp = nil, corr = nil, next_update = 0 } end
             local cache = plist_cache[ent]
             
-            if cache.baim ~= force_baim or cache.sp ~= force_sp or cache.corr ~= correction then
-                ui.set(ref_plist, ent)
-                
-                if cache.baim ~= force_baim then
-                    ui.set(ref_plist_baim, force_baim and "On" or "-")
-                    cache.baim = force_baim
-                end
-                
-                if cache.sp ~= force_sp then
-                    ui.set(ref_plist_sp, force_sp and "On" or "-")
-                    cache.sp = force_sp
-                end
+            if globals.realtime() > cache.next_update then
+                if cache.baim ~= force_baim or cache.sp ~= force_sp or cache.corr ~= correction then
+                    safe_ui_set(ref_plist, ent)
+                    
+                    if cache.baim ~= force_baim then
+                        safe_ui_set(ref_plist_baim, force_baim and "On" or "-")
+                        cache.baim = force_baim
+                    end
+                    
+                    if cache.sp ~= force_sp then
+                        safe_ui_set(ref_plist_sp, force_sp and "On" or "-")
+                        cache.sp = force_sp
+                    end
 
-                if cache.corr ~= correction then
-                    pcall(function() ui.set(ref_plist_corr, correction) end)
-                    cache.corr = correction
+                    if cache.corr ~= correction then
+                        safe_ui_set(ref_plist_corr, correction)
+                        cache.corr = correction
+                    end
+                    
+                    ui_changed = true
+                    cache.next_update = globals.realtime() + 0.2
                 end
-                
-                ui_changed = true
             end
         end
         
@@ -848,7 +804,7 @@ local function handle_smart_aimbot()
     end
     
     if ui_changed and ref_plist and orig_player then
-        ui.set(ref_plist, orig_player)
+        safe_ui_set(ref_plist, orig_player)
     end
 end
 
@@ -900,6 +856,8 @@ end)
 -- [ ADVANCED ANTI-AIM LOGIC ]
 -- ==========================================
 local slow_walk_tick = 0
+local backstab_active_until = 0 
+local last_speed_state = "Stand"
 
 local function handle_advanced_aa(cmd)
     if not ui.get(m.aa_enabled) then return end
@@ -931,19 +889,23 @@ local function handle_advanced_aa(cmd)
     local in_air = bit_band(flags, 1) == 0
     local duck_amount = entity.get_prop(me, "m_flDuckAmount")
 
-    local current_state = "Stand"
+    -- Sistema de Histerese de Velocidade para matar o flickering
+    if speed > 7.0 then
+        last_speed_state = "Move"
+    elseif speed < 3.0 then
+        last_speed_state = "Stand"
+    end
+
+    local current_state = last_speed_state
     if in_air then 
         current_state = "Air"
     elseif duck_amount > 0.5 then 
         current_state = "Crouch"
-    elseif speed > 5 then 
-        current_state = "Move" 
     end
 
     local set = m.aa_settings[current_state]
 
-    -- [ ANTI-BACKSTAB LOGIC ]
-    local is_anti_backstab_active = false
+    local enemy_close = false
     if ui.get(m.anti_backstab) then
         local players = entity.get_players(true)
         local lx, ly, lz = entity.get_prop(me, "m_vecOrigin")
@@ -955,12 +917,12 @@ local function handle_advanced_aa(cmd)
                 local wpn = entity.get_player_weapon(enemy)
                 if wpn then
                     local classname = entity.get_classname(wpn)
-                    if classname:find("Knife") or classname:find("Bayonet") then
+                    if classname and (classname:find("Knife") or classname:find("Bayonet")) then
                         local ex, ey, ez = entity.get_prop(enemy, "m_vecOrigin")
-                        if ex then
+                        if ex and lx then
                             local dist = math_sqrt((lx-ex)^2 + (ly-ey)^2 + (lz-ez)^2)
                             if dist < max_dist then
-                                is_anti_backstab_active = true
+                                enemy_close = true
                                 break
                             end
                         end
@@ -970,30 +932,43 @@ local function handle_advanced_aa(cmd)
         end
     end
 
+    if enemy_close then
+        backstab_active_until = globals.realtime() + 0.35 
+    end
+    local is_anti_backstab_active = globals.realtime() < backstab_active_until
+
     if is_anti_backstab_active then
-        ui.set(refs.yaw_base, "At targets")
-        ui.set(refs.yaw_slider, 0)
-        ui.set(refs.yaw_jitter[1], "Off")
-        ui.set(refs.body_yaw[1], "Off")
+        safe_ui_set(refs.yaw_base, "At targets")
+        safe_ui_set(refs.yaw_slider, 0)
+        safe_ui_set(refs.yaw_jitter[1], "Off")
+        safe_ui_set(refs.body_yaw[1], "Off")
     else
-        if manual_state == 0 then ui.set(refs.yaw_slider, ui.get(set.yaw)) end
+        safe_ui_set(refs.yaw_base, "Local view")
         
-        ui.set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
-        ui.set(refs.yaw_jitter[2], ui.get(set.jitter_range))
+        if manual_state == 1 then 
+            safe_ui_set(refs.yaw_slider, -90)
+        elseif manual_state == 2 then 
+            safe_ui_set(refs.yaw_slider, 90)
+        else
+            safe_ui_set(refs.yaw_slider, ui.get(set.yaw))
+        end
+        
+        safe_ui_set(refs.yaw_jitter[1], ui.get(set.jitter_mode))
+        safe_ui_set(refs.yaw_jitter[2], ui.get(set.jitter_range))
 
         local target_body_yaw = ui.get(set.body_yaw)
         if ui.get(m.lby_breaker) then
             target_body_yaw = (cmd.command_number % 3 == 0) and "Opposite" or "Jitter"
         end
-        ui.set(refs.body_yaw[1], target_body_yaw)
+        safe_ui_set(refs.body_yaw[1], target_body_yaw)
 
         local target_desync = ui.get(set.desync)
         if bruteforce_flip then target_desync = -target_desync end
-        ui.set(refs.body_yaw[2], target_desync)
+        safe_ui_set(refs.body_yaw[2], target_desync)
     end
 
-    ui.set(refs.fl_amount, ui.get(set.fl_amount))
-    ui.set(refs.fl_variance, ui.get(set.fl_variance))
+    safe_ui_set(refs.fl_amount, ui.get(set.fl_amount))
+    safe_ui_set(refs.fl_variance, ui.get(set.fl_variance))
 
     local final_limit = ui.get(set.fl_limit)
     if ui.get(m.lc_breaker) and current_state == "Move" then
@@ -1001,7 +976,7 @@ local function handle_advanced_aa(cmd)
             final_limit = math.max(1, final_limit - math.random(3, 7))
         end
     end
-    ui.set(refs.fl_limit, final_limit)
+    safe_ui_set(refs.fl_limit, final_limit)
 end
 
 -- ==========================================
@@ -1047,6 +1022,7 @@ local function draw_range_rings()
     if not wpn then return end
 
     local classname = entity.get_classname(wpn)
+    if not classname then return end
     local is_knife = classname:find("Knife") or classname:find("Bayonet")
     local is_zeus = classname == "CWeaponTaser"
 
@@ -1103,22 +1079,30 @@ end
 -- [ RAGEBOT HOTKEY SYNC ]
 -- ==========================================
 local syncing = true
+local is_syncing_hotkeys = false
 local hotkey_type_names = { [0] = "Always on", "On hotkey", "Toggle", "Off hotkey" }
 local weapon_names = { "Global", "G3SG1 / SCAR-20", "SSG 08", "AWP", "R8 Revolver", "Desert Eagle", "Pistol", "Zeus", "Rifle", "Shotgun", "SMG", "Machine gun" }
 local weapon_type_ref = ui.reference("RAGE", "Weapon type", "Weapon type")
 
 local function sync_hotkey_to_all(ref)
-    if not syncing or not ui.get(m.sync_hotkeys_enabled) then return end
-    local _, htype_num, bind = ui.get(ref)
-    local htype_str = hotkey_type_names[htype_num] or "Always on"
-    bind = bind or 0
-    local current_weapon = ui.get(weapon_type_ref)
+    if is_syncing_hotkeys or not syncing or not ui.get(m.sync_hotkeys_enabled) then return end
+    
+    is_syncing_hotkeys = true
+    client.delay_call(0, function()
+        pcall(function()
+            local _, htype_num, bind = ui.get(ref)
+            local htype_str = hotkey_type_names[htype_num] or "Always on"
+            bind = bind or 0
+            local current_weapon = ui.get(weapon_type_ref)
 
-    for i = 1, #weapon_names do
-        ui.set(weapon_type_ref, weapon_names[i])
-        ui.set(ref, htype_str, bind)
-    end
-    ui.set(weapon_type_ref, current_weapon)
+            for i = 1, #weapon_names do
+                safe_ui_set(weapon_type_ref, weapon_names[i])
+                safe_ui_set(ref, htype_str, bind)
+            end
+            safe_ui_set(weapon_type_ref, current_weapon)
+        end)
+        is_syncing_hotkeys = false
+    end)
 end
 
 local sync_refs = {
@@ -1157,8 +1141,10 @@ local function handle_nade_dropper(cmd)
             local weapon_ent = entity.get_prop(me, "m_hMyWeapons", i)
             if weapon_ent and weapon_ent ~= 0 and weapon_ent ~= -1 then
                 local class_name = entity.get_classname(weapon_ent)
-                local mapped = nade_mappings[class_name]
-                if mapped and table_contains(selected, mapped.menu) then table.insert(nade_drop_queue, mapped.cmd) end
+                if class_name then
+                    local mapped = nade_mappings[class_name]
+                    if mapped and table_contains(selected, mapped.menu) then table.insert(nade_drop_queue, mapped.cmd) end
+                end
             end
         end
         if #nade_drop_queue > 0 then nade_drop_throwing = true end
@@ -1821,8 +1807,9 @@ local function on_setup_command(cmd)
     handle_smart_aimbot()
 end
 
-client.set_event_callback("paint", function()
-    handle_manual_aa()
+local function vitriol_on_paint()
+    handle_manual_aa_keys()
+    handle_camera_mods()
     draw_manual_aa()
     draw_taser_warning()
     draw_range_rings()
@@ -1836,7 +1823,9 @@ client.set_event_callback("paint", function()
     draw_netgraph()
     draw_chinahat()
     draw_trails()
-end)
+end
+
+client.set_event_callback("paint", vitriol_on_paint)
 
 client.set_event_callback("weapon_fire", function(e)
     local me = entity.get_local_player()
