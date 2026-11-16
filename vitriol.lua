@@ -1,20 +1,13 @@
--- Vitriol.lua by larihvh (Ultra-Safe Version)
+-- Vitriol.lua by larihvh
 
 local TAB, CONTAINER = "LUA", "B"
 local ffi = require("ffi")
 
--- Tentativa de carregar a API invisível de Player List do Skeet para evitar mexer no menu
 local plist_ok, plist = pcall(require, "gamesense/plist")
 
--- ==========================================
--- [ SISTEMA DE PROTEÇÃO ANTI-STACK OVERFLOW ]
--- ==========================================
 local _vitriol_menu_guard = false
 local _vitriol_ui_guard = false
 
--- ==========================================
--- [ FFI - APENAS SPARKLES E AUDIO (SEGURO) ]
--- ==========================================
 ffi.cdef [[
     struct vitriol_spark_vec3_t { float x, y, z; };
     typedef void(__fastcall*Vitriol_FX_ElectricSparkFn)(const struct vitriol_spark_vec3_t*, int, int, const struct vitriol_spark_vec3_t*);
@@ -74,9 +67,6 @@ pcall(function()
     ref_plist_corr = ui.reference("PLAYERS", "Adjustments", "Correction active")
 end)
 
--- ==========================================
--- [ MENU UI ]
--- ==========================================
 local m = {}
 ui.new_label(TAB, CONTAINER, "====== [ Vitriol.lua ] ======")
 
@@ -225,9 +215,6 @@ m.sync_hotkeys_enabled = ui.new_checkbox(TAB, CONTAINER, "Sync Ragebot Hotkeys")
 
 ui.new_label(TAB, CONTAINER, "=========================")
 
--- ==========================================
--- [ CAMERA & VIEWMODEL LOGIC ]
--- ==========================================
 local orig_cvars = {
     ar = cvar.r_aspectratio:get_float() or 0,
     fov = cvar.viewmodel_fov:get_float() or 68,
@@ -260,9 +247,6 @@ local function handle_camera_mods()
     end
 end
 
--- ==========================================
--- [ CLANTAG FUNCTIONS ]
--- ==========================================
 local clantag_frames = {
     " ", "V", "Vi", "Vit", "Vitr", "Vitri", "Vitrio", "Vitriol", "Vitriol.", "Vitriol.l", "Vitriol.lu", "Vitriol.lua",
     "Vitriol.lua :3", "Vitriol.lua <3", "Vitriol.lua ♡", "Vitriol.lua ♡", "Vitriol.lua <3", "Vitriol.lua :3",
@@ -322,9 +306,6 @@ local function reset_clantag()
     current_frame = 1
 end
 
--- ==========================================
--- [ VISIBILITY HANDLER ]
--- ==========================================
 local function handle_menu()
     if _vitriol_menu_guard then return end
     _vitriol_menu_guard = true
@@ -473,9 +454,6 @@ ui.set_callback(m.clantag_enabled, function()
 end)
 handle_menu()
 
--- ==========================================
--- [ UTILS ]
--- ==========================================
 local function trim_string(s) return s:match("^%s*(.-)%s*$") end
 local function lerp(a, b, t) return a + (b - a) * t end
 
@@ -539,9 +517,6 @@ local function table_contains(tbl, val)
     return false
 end
 
--- ==========================================
--- [ CHINAHAT & TRAILS LOGIC ]
--- ==========================================
 local trail_positions = {}
 
 local function draw_chinahat()
@@ -631,9 +606,6 @@ local function draw_trails()
     end
 end
 
--- ==========================================
--- [ MANUAL AA ARROWS & LOGIC ]
--- ==========================================
 local manual_state = 0
 local last_press_l, last_press_r, last_press_b = 0, 0, 0
 
@@ -679,9 +651,6 @@ local function draw_manual_aa()
     renderer.triangle(cx, cy + offset, cx - 5, cy + offset - 10, cx + 5, cy + offset - 10, br, bg, bb, ba)
 end
 
--- ==========================================
--- [ EXPLOITS & SMART AIMBOT LOGIC + RESOLVER ]
--- ==========================================
 local bruteforce_flip = false
 local force_duck_ticks = 0
 local math_sqrt = math.sqrt
@@ -750,7 +719,6 @@ local function handle_smart_aimbot()
                     else force_baim = true end
                 end
             elseif mode == "Smart Animstate" then
-                -- AGORA USANDO API NATIVA E SEGURA
                 local eye_yaw = entity.get_prop(ent, "m_angEyeAngles[1]")
                 local lby = entity.get_prop(ent, "m_flLowerBodyYawTarget")
                 
@@ -852,9 +820,6 @@ client.set_event_callback("bullet_impact", function(e)
     end
 end)
 
--- ==========================================
--- [ ADVANCED ANTI-AIM LOGIC ]
--- ==========================================
 local slow_walk_tick = 0
 local backstab_active_until = 0 
 local last_speed_state = "Stand"
@@ -889,7 +854,6 @@ local function handle_advanced_aa(cmd)
     local in_air = bit_band(flags, 1) == 0
     local duck_amount = entity.get_prop(me, "m_flDuckAmount")
 
-    -- Sistema de Histerese de Velocidade para matar o flickering
     if speed > 7.0 then
         last_speed_state = "Move"
     elseif speed < 3.0 then
@@ -979,9 +943,6 @@ local function handle_advanced_aa(cmd)
     safe_ui_set(refs.fl_limit, final_limit)
 end
 
--- ==========================================
--- [ TASER WARNING ESP ]
--- ==========================================
 local taser_svg_raw = [[<svg id="svg" version="1.1" width="608" height="689" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ><g id="svgg"><path id="path0" d="M185.803 18.945 C 184.779 19.092,182.028 23.306,174.851 35.722 C 169.580 44.841,157.064 66.513,147.038 83.882 C 109.237 149.365,100.864 163.863,93.085 177.303 C 88.686 184.901,78.772 202.072,71.053 215.461 C 63.333 228.849,53.959 245.069,50.219 251.505 C 46.480 257.941,43.421 263.491,43.421 263.837 C 43.421 264.234,69.566 264.530,114.025 264.635 L 184.628 264.803 181.217 278.618 C 179.342 286.217,174.952 304.128,171.463 318.421 C 167.974 332.714,160.115 364.836,153.999 389.803 C 147.882 414.770,142.934 435.254,143.002 435.324 C 143.127 435.452,148.286 428.934,199.343 364.145 C 215.026 344.243,230.900 324.112,234.619 319.408 C 238.337 314.704,254.449 294.276,270.423 274.013 C 286.397 253.750,303.090 232.582,307.519 226.974 C 340.870 184.745,355.263 166.399,355.263 166.117 C 355.263 165.937,323.554 165.789,284.798 165.789 C 223.368 165.789,214.380 165.667,214.701 164.831 C 215.039 163.949,222.249 151.366,243.554 114.474 C 280.604 50.317,298.192 19.768,298.267 19.444 C 298.355 19.064,188.388 18.576,185.803 18.945 " stroke="none" fill="#ffffff" fill-rule="evenodd"></path></g></svg>]]
 local taser_svg = renderer.load_svg(taser_svg_raw, 150, 150)
 
@@ -1011,9 +972,6 @@ local function draw_taser_warning()
     end
 end
 
--- ==========================================
--- [ ZEUS & KNIFE RANGE RINGS ]
--- ==========================================
 local function draw_range_rings()
     if not ui.get(m.range_rings_enabled) then return end
     local me = entity.get_local_player()
@@ -1059,9 +1017,6 @@ local function draw_range_rings()
     end
 end
 
--- ==========================================
--- [ SOUND PLAYER HELPER ]
--- ==========================================
 local function play_custom_sound(type)
     local file = type == "hit" and ui.get(m.hitsound_file) or ui.get(m.killsound_file)
     if file == "" then return end
@@ -1075,9 +1030,6 @@ local function play_custom_sound(type)
     end
 end
 
--- ==========================================
--- [ RAGEBOT HOTKEY SYNC ]
--- ==========================================
 local syncing = true
 local is_syncing_hotkeys = false
 local hotkey_type_names = { [0] = "Always on", "On hotkey", "Toggle", "Off hotkey" }
@@ -1119,9 +1071,6 @@ end
 client.set_event_callback("pre_config_load", function() syncing = false end)
 client.set_event_callback("post_config_load", function() syncing = true end)
 
--- ==========================================
--- [ NADE DROPPER ]
--- ==========================================
 local nade_mappings = { ["CHEGrenade"] = { cmd = "weapon_hegrenade", menu = "HE" }, ["CSmokeGrenade"] = { cmd = "weapon_smokegrenade", menu = "Smoke" }, ["CMolotovGrenade"] = { cmd = "weapon_molotov", menu = "Molotov" }, ["CIncendiaryGrenade"] = { cmd = "weapon_incgrenade", menu = "Molotov" }, ["CFlashbang"] = { cmd = "weapon_flashbang", menu = "Flashbang" }, ["CDecoyGrenade"] = { cmd = "weapon_decoy", menu = "Decoy" } }
 local nade_drop_queue = {}
 local nade_drop_throwing = false
@@ -1170,9 +1119,6 @@ local function handle_nade_dropper(cmd)
     end
 end
 
--- ==========================================
---            [ WATERMARK ]
--- ==========================================
 local function draw_watermark()
     if not ui.get(m.watermark_enabled) then return end
 
@@ -1223,9 +1169,6 @@ local function draw_watermark()
     renderer.text(cx, y + 4, 255, 255, 255, 255, "", 0, time_str)
 end
 
--- ==========================================
--- [ STAMINA METER ]
--- ==========================================
 local function draw_stamina_meter()
     if not ui.get(m.stamina_enabled) then return end
     local me = entity.get_local_player()
@@ -1263,9 +1206,6 @@ local function draw_stamina_meter()
     renderer.text(cx, bar_y - 12, 255, 255, 255, a, "c", 0, text)
 end
 
--- ==========================================
--- [ INDICADORES DA HUD E SLOWDOWN ]
--- ==========================================
 local anim_data = { dt = 0, dt_charge = 1.0, hs = 0, fs = 0, fd = 0, baim = 0, sp = 0 }
 local dmg_anim = { val = 0, r = 220, g = 180, b = 255 }
 
@@ -1425,9 +1365,6 @@ local function draw_crosshair_hud()
     y_offset = draw_indicator(cx, y_offset, 200, 200, 200, a, "SAFE", anim_data.sp)
 end
 
--- ==========================================
--- [ LOGS E HITMARKER ]
--- ==========================================
 local hitgroup_names = { "body", "head", "chest", "stomach", "left arm", "right arm", "left leg", "right leg", "neck", "?", "gear" }
 local aim_data = {}
 local screen_logs = {}
@@ -1551,9 +1488,6 @@ local function on_aim_miss(e)
     add_screen_log(log_text, { 200, 60, 60 })
 end
 
--- ==========================================
--- [ DEATH SPARKLES ]
--- ==========================================
 local function on_player_death_sparkles(e)
     if not ui.get(m.sparkles_enabled) then return end
     local lp = entity.get_local_player()
@@ -1582,9 +1516,6 @@ local function on_player_death_sparkles(e)
     end
 end
 
--- ==========================================
--- [ TRASH TALK ]
--- ==========================================
 local messages = { "VITRIOL.lua dissolve voce", "Vitriol.lua > ALL :3", "Deita ai random", "Owned by Vitriol.lua ♡", "voce foi ownado", "voce foi dissolvido" }
 local molly_msgs = { "Churrasco de random kkk", "Assado vivo", "Fogo na inveja", "Virou cinza kkk", "Dançando no fogo" }
 local death_msgs = { "Sério isso? kk", "Cagada do século", "Milagre arrombado", "Aí é foda", "Sorte kkk da próxima te deito", "Isso foi clutch?", "Era free kill" }
@@ -1683,9 +1614,6 @@ client.set_event_callback("player_disconnect", function(e)
     end
 end)
 
--- ==========================================
--- [ BUYBOT ]
--- ==========================================
 local buy_cmds = { ["Auto"] = "scar20", ["Scout"] = "ssg08", ["Awp"] = "awp", ["Primary rifle"] = "ak47", ["Scoped rifle"] = "sg556", ["Machine gun"] = "negev", ["Default pistol"] = "glock", ["P250"] = "p250", ["Dual Berettas"] = "elite", ["Light pistol"] = "tec9", ["Heavy pistol"] = "deagle", ["Grenade"] = "hegrenade", ["Smoke"] = "smokegrenade", ["Incendiary"] = "molotov", ["Flashbang"] = "flashbang", ["Kevlar + Helmet"] = "vesthelm", ["Defuse kit"] = "defuser", ["Zeus"] = "taser" }
 
 local function on_round_prestart()
@@ -1702,9 +1630,6 @@ local function on_round_prestart()
     if #cmds_to_run > 0 then client.exec(table.concat(cmds_to_run, "; ")) end
 end
 
--- ==========================================
--- [ QUICK SWITCH E KNIFE RETREAT ]
--- ==========================================
 local retreat_data = { is_retreating = false, start_time = 0 }
 
 local function handle_quick_switch(weapon_name)
@@ -1723,9 +1648,6 @@ local function handle_quick_switch(weapon_name)
     end
 end
 
--- ==========================================
--- [ CUSTOM NETGRAPH ]
--- ==========================================
 local function draw_netgraph()
     if not ui.get(m.netgraph_enabled) then return end
     
@@ -1767,9 +1689,6 @@ local function draw_netgraph()
     renderer.text(col3, y + (gap*2), r, g, b, a, font_flag, 0, string.format("cmd: %4.1f/s", cmd))
 end
 
--- ==========================================
--- [ REGISTRO DE EVENTOS E SHUTDOWN ]
--- ==========================================
 local cjump_start_time = nil
 local cjump_was_active = false
 local cjump_jumped = false
